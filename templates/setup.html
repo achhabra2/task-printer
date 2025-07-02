@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.button-row { display: flex; gap: 16px; width: 100%; margin-top: 18px; }
+.button-row button { flex: 1; }
+.close-btn { background: #e0e0e0; color: #222; border: none; border-radius: 4px; padding: 12px 0; font-size: 17px; cursor: pointer; transition: background 0.2s; }
+.close-btn:hover { background: #bdbdbd; color: #111; }
+label, .centered-card label { text-align: left; display: block; font-weight: bold; margin-top: 18px; margin-bottom: 6px; }
+input, select { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 4px; font-size: 15px; box-sizing: border-box; margin-bottom: 2px; }
+button { background: #007bff; color: #fff; border: none; border-radius: 4px; padding: 12px 0; font-size: 17px; width: 100%; margin-top: 24px; cursor: pointer; }
+button:hover { background: #0056b3; }
+.help { color: #666; font-size: 0.97em; margin-bottom: 8px; }
+.usb-list, .usb-list form, .usb-list label, .usb-list div { text-align: left !important; }
+.usb-list label, .usb-list div { width: 100%; }
+.auto-startup-row { display: flex; align-items: center; text-align: left; margin-top: 18px !important; margin-left: 0 !important; width: auto !important; justify-content: flex-start !important; align-self: flex-start !important; }
+.auto-startup-row label { font-weight: normal; margin: 0; display: inline; line-height: 1; padding-top: 1px; }
+.auto-startup-row input[type=checkbox] { width: 13px !important; height: 13px !important; min-width: 13px !important; min-height: 13px !important; max-width: 13px !important; max-height: 13px !important; margin-right: 10px; margin-left: 0; flex: 0 0 auto; margin-top: 1px; }
+input[type=radio] { width: 13px !important; height: 13px !important; min-width: 13px !important; min-height: 13px !important; max-width: 13px !important; max-height: 13px !important; margin-right: 8px; vertical-align: middle; }
+.usb-printer-label { font-weight: bold; display: block; margin: 18px 0 18px 0 !important; text-align: left; }
+</style>
+<div class="centered-card">
+  <h1>⚙️ Task Printer Setup</h1>
+  <form method="POST" style="width:100%;" novalidate>
+    <label style="text-align:left;">Printer Type:</label>
+    <select name="printer_type" id="printer_type" onchange="onTypeChange()">
+      <option value="usb">USB</option>
+      <option value="network">Network</option>
+      <option value="serial">Serial</option>
+    </select>
+    <label class="usb-printer-label">Select your USB printer:</label>
+    <div id="usb_fields" class="usb-list">
+      {% if usb_devices and usb_devices|length > 0 %}
+        <form id="usbdevs">
+        {% for dev in usb_devices %}
+          <div style="margin-bottom:16px;display:flex;align-items:center;text-align:left;">
+            <input type="radio" name="usb_device" value="0x{{ dev.vendor }}:0x{{ dev.product }}" {% if loop.index0 == 0 %}checked{% endif %}>
+            <label style="font-weight:normal;{% if not dev.is_printer %}color:#aaa;{% endif %}margin:0;">
+              {{ dev.desc }}
+              {% if not dev.is_printer %}
+                <span style="color:#bbb;font-size:0.97em;">(not a printer)</span>
+              {% endif %}
+              <span style="color:#888;font-size:0.97em;">(Vendor ID: 0x{{ dev.vendor }}, Product ID: 0x{{ dev.product }})</span>
+            </label>
+          </div>
+        {% endfor %}
+        <div style="margin-top:7px;display:flex;align-items:center;text-align:left;">
+          <input type="radio" name="usb_device" value="manual">
+          <label style="font-weight:normal;margin:0;">Other (enter manually below)</label>
+        </div>
+        </form>
+      {% else %}
+        <div class="help" style="margin:18px 0 10px 0;">No USB printers detected. Please enter Vendor ID and Product ID manually below.</div>
+      {% endif %}
+      <div id="manual_usb_fields" style="display:{{ 'block' if not usb_devices else 'none' }};">
+        <label>USB Vendor ID:</label>
+        <input name="usb_vendor_id" value="0x04b8">
+        <div class="help">Find this by running <code>lsusb</code> on your Raspberry Pi. Example: <code>ID 04b8:0e28</code> → Vendor ID: <b>0x04b8</b></div>
+        <label>USB Product ID:</label>
+        <input name="usb_product_id" value="0x0e28">
+        <div class="help">Find this by running <code>lsusb</code>. Example: <code>ID 04b8:0e28</code> → Product ID: <b>0x0e28</b></div>
+      </div>
+    </div>
+    <div id="network_fields" style="display:none;">
+      <label>Network IP:</label> <input name="network_ip"><br>
+      <label>Network Port:</label> <input name="network_port" value="9100"><br>
+    </div>
+    <div id="serial_fields" style="display:none;">
+      <label>Serial Port:</label> <input name="serial_port"><br>
+      <label>Serial Baudrate:</label> <input name="serial_baudrate" value="19200"><br>
+    </div>
+    <hr style="width:100%;margin:28px 0 18px 0;border:0;border-top:1.5px solid #eee;">
+    <div class="auto-startup-row"><input type="checkbox" name="auto_startup" id="auto_startup"><label for="auto_startup" style="font-weight:bold;">Enable auto startup on boot (systemd)</label></div>
+    <div class="button-row">
+      <button type="submit" id="saveStartBtn">Save & Start</button>
+      {% if show_close %}
+      <button type="button" class="close-btn" id="closeBtn">Close</button>
+      {% endif %}
+    </div>
+  </form>
+</div>
+<script>
+console.log('Setup page script loaded');
+function onTypeChange() {
+  var t = document.getElementById('printer_type').value;
+  document.getElementById('usb_fields').style.display = (t==='usb') ? '' : 'none';
+  document.getElementById('network_fields').style.display = (t==='network') ? '' : 'none';
+  document.getElementById('serial_fields').style.display = (t==='serial') ? '' : 'none';
+  console.log('Printer type changed to:', t);
+}
+function onUsbRadioChange() {
+  var manual = document.querySelector('input[name=usb_device][value=manual]');
+  var checked = document.querySelector('input[name=usb_device]:checked');
+  document.getElementById('manual_usb_fields').style.display = (checked && checked.value === 'manual') ? 'block' : 'none';
+  console.log('USB radio changed. Checked:', checked ? checked.value : null);
+}
+window.onload = function() {
+  console.log('Window loaded');
+  onTypeChange();
+  var radios = document.querySelectorAll('input[name=usb_device]');
+  for (var i=0; i<radios.length; ++i) { radios[i].addEventListener('change', onUsbRadioChange); }
+  onUsbRadioChange();
+  var form = document.querySelector('form[method="POST"]');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      console.log('Form submit event triggered');
+      try {
+        var formData = new FormData(form);
+        for (var pair of formData.entries()) {
+          console.log('Form data:', pair[0], '=', pair[1]);
+        }
+      } catch (err) {
+        console.error('Error reading form data:', err);
+      }
+    });
+  } else {
+    console.error('POST form not found on setup page');
+  }
+  var saveBtn = document.getElementById('saveStartBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', function(e) {
+      console.log('Save & Start button clicked');
+      // Force submit for debugging
+      var form = document.querySelector('form[method="POST"]');
+      if (form) {
+        form.submit();
+        console.log('Form.submit() called by Save & Start click');
+      }
+    });
+  } else {
+    console.error('Save & Start button not found');
+  }
+  var closeBtn = document.getElementById('closeBtn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', function(e) {
+      window.location.href = '/';
+    });
+  }
+};
+</script>
+{% endblock %} 

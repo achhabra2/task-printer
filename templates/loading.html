@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.centered-card { text-align: center !important; }
+</style>
+<div class="centered-card">
+  <div class="spinner"></div>
+  <div style="font-size:1.2em;">Saving settings and restarting app…</div>
+  <div style="margin-top:18px;font-size:0.97em;color:#888;">This page will refresh automatically.<br>If the app does not load after 10 seconds, please refresh the page.</div>
+</div>
+<script>
+setTimeout(function() {
+    fetch('/restart', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({'auto_startup': {{ auto_startup|tojson }} })});
+}, 10000);
+</script>
+<meta http-equiv="refresh" content="10;url=/" />
+{% endblock %} 

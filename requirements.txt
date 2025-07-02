@@ -1,0 +1,4 @@
+Flask>=2.0
+python-escpos>=3.0.0
+Pillow>=8.0.0
+pyusb>=1.1.0 
