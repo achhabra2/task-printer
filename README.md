@@ -97,7 +97,7 @@ A simple, user-friendly Flask web app for Raspberry Pi that lets you enter tasks
 Pull requests and issues are welcome! See the [GitHub repo](https://github.com/belu1357/task-printer.git) for more info.
 
 ## License
-MIT License. See [LICENSE](LICENSE) for details.
+GPL License. See [LICENSE](LICENSE) for details.
 
 ## Project Structure
 
