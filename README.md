@@ -53,7 +53,7 @@ A simple, user-friendly Flask web app for Raspberry Pi that lets you enter tasks
    ```
 2. **Access the web interface:**
    - On the Pi: [http://localhost:5000](http://localhost:5000)
-   - On your network: [http://<raspberry-pi-ip>:5000](http://<raspberry-pi-ip>:5000)
+   - On your network: http://(raspberry-pi-ip):5000
 
 ## First-Time Setup
 - On first run, you'll be guided through a web-based setup page to select your printer type, connection, and preferences.
