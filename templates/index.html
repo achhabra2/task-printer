@@ -374,23 +374,19 @@
                         <input type="text" name="task_${sectionCount}_1" placeholder="Enter task 1..." required>
                         <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
                     </div>
-                    <div class="flair-row" data-for="${sectionCount}_1">
-                        <label>Flair:</label>
-                        <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)">
-                            <option value="none" selected>None</option>
-                            <option value="icon">Icon</option>
-                            <option value="qr">QR</option>
-                        </select>
-                        <select name="flair_icon_${sectionCount}_1" class="flair-icon" style="display:none;">
-                            <option value="working">Working</option>
-                            <option value="cleaning">Cleaning</option>
-                            <option value="family">Family</option>
-                            <option value="fitness">Fitness</option>
-                            <option value="study">Study</option>
-                            <option value="errands">Errands</option>
-                        </select>
-                        <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
-                    </div>
+                            <div class="flair-row" data-for="${sectionCount}_1">
+                                <label>Flair:</label>
+                                <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)">
+                                    <option value="none" selected>None</option>
+                                    <option value="icon">Icon</option>
+                                    <option value="image">Image</option>
+                                    <option value="qr">QR</option>
+                                </select>
+                                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(${sectionCount}, 1)}</div>
+                                <input type="file" name="flair_image_${sectionCount}_1" class="flair-image" accept="image/*" style="display:none;">
+                                <img class="flair-preview" alt="preview">
+                                <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
+                            </div>
                 </div>
                 <button type="button" class="add-task-btn" onclick="addTask(this)">➕ Add Task</button>
             `;
@@ -425,7 +421,7 @@
                     <option value="image">Image</option>
                     <option value="qr">QR</option>
                 </select>
-                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(${sectionId}, ${taskNumber})}</div>
+                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(sectionId, taskNumber)}</div>
                 <input type="file" name="flair_image_${sectionId}_${taskNumber}" class="flair-image" accept="image/*" style="display:none;">
                 <img class="flair-preview" alt="preview">
                 <input type="text" name="flair_qr_${sectionId}_${taskNumber}" class="flair-qr" placeholder="QR data" style="display:none;">
@@ -472,7 +468,7 @@
                                     <option value="image">Image</option>
                                     <option value="qr">QR</option>
                                 </select>
-                                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(${sectionCount}, 1)}</div>
+                                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(sectionCount, 1)}</div>
                                 <input type="file" name="flair_image_${sectionCount}_1" class="flair-image" accept="image/*" style="display:none;">
                                 <img class="flair-preview" alt="preview">
                                 <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
@@ -503,7 +499,7 @@
                 const sectionId = sectionDiv.getAttribute('data-section');
                 fr.setAttribute('data-for', `${sectionId}_${newNum}`);
                 fr.querySelectorAll('select, input').forEach(el => {
-                    el.name = el.name.replace(/^(flair_(?:type|icon|qr)_\d+_)(\d+)$/, `$1${newNum}`);
+                    el.name = el.name.replace(/^(flair_(?:type|icon|qr|image)_\d+_)(\d+)$/, `$1${newNum}`);
                 });
             });
             updateRemoveButtons(taskContainer);
