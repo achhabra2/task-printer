@@ -1,120 +1,160 @@
-# Task Printer — Agent Guide
+# Task Printer — Agent Guide (Refactor Edition)
 
-This document orients future agents to the codebase, how the app works end‑to‑end, where things live, and how to extend it safely. Skim this before making changes.
+This guide orients contributors and future agents to the refactored repository layout, updated application factory, and where responsibilities live after the package restructuring. Read this before making changes so you understand the new wiring, extension points, and safe ways to modify behavior.
 
-## Overview
-- Purpose: A small Flask app that lets users enter grouped “tasks” and prints each task as its own receipt on a thermal printer (USB, network, or serial). Designed for Raspberry Pi but portable to Linux.
-- Printer driver: `python-escpos` (ESC/POS). Text is rendered via Pillow to image for consistent typography. Optional printer “profiles” (e.g., Epson TM‑P80) can be selected.
+High-level goals of the refactor
+- Move from a single `app.py` monolith to a Python package `task_printer` with an application factory.
+- Make bootstrapping, testing, and reuse easier by isolating concerns:
+  - `task_printer.__init__` exposes `create_app(...)`
+  - `task_printer.core` holds reusable helpers (config, assets, logging)
+  - `task_printer.web` contains blueprints for HTTP endpoints
+  - `task_printer.printing` contains rendering and the background worker
+- Keep runtime behaviour identical for users while improving developer ergonomics.
 
-## Key Features
-- Setup gating: First run redirects to `/setup`; config persisted to `config.json` (path resolved via env/XDG).
-- Print queue + worker: Print requests are queued and processed in a background thread (non‑blocking HTTP).
-- Jobs: ID’d jobs, `/jobs/<id>` status API, Jobs page (`/jobs`), banner on home.
-- Logging: Python `logging` with request IDs, journald fallback; optional JSON logs via env.
-- Security & limits: Flask‑WTF CSRF across forms; input length/section/task caps; control‑character rejection.
-- Health: `/healthz` reports config presence, worker status, queue size, basic printer reachability.
-- Test Print: From index and setup (pre‑save) using current config/inputs.
-- Printer profile: Optional selection (e.g., `TM-P80`, `TM-T88III`, `TM-T20III`), generic otherwise.
-- Paper usage: Configurable blank lines before cut; optional dashed separators.
-- Flair per task (Phase 1–2): Icon (from `static/icons`), QR payload, or Image upload with live preview.
+If you're working on this project you should:
+- Prefer editing package modules under `task_printer/` rather than top-level `app.py` unless you are changing the simple runner.
+- Read `task_printer.__init__.py` to understand app creation and how blueprints/workers are registered.
 
-## Repository Map
-- `app.py` — Flask app, routes, config, queue worker, printing logic, logging.
-- `templates/` — Jinja templates:
-  - `index.html` — main UI (dynamic sections/tasks, flair, status banner, topbar).
-  - `setup.html` — printer configuration (type, connection, profile, spacing/separators).
-  - `loading.html` — shows while restarting after saving settings.
-  - `jobs.html` — jobs list (auto‑refresh).
-  - `base.html` — shared base.
-- `static/icons/` — optional icon PNG/JPG/etc. Auto‑scanned for icon picker.
-- `requirements.txt` — Flask, python‑escpos, Pillow, pyusb, Flask‑WTF.
-- `start.sh` — picks uv/venv/system python to run the app.
-- `install_service.sh` — installs a hardened systemd unit with `EnvironmentFile`.
-- `scripts/setup_fedora.sh` — local setup helper for Fedora.
-- `Dockerfile` — minimal container (installs DejaVu fonts).
-- `docs/` — project docs:
-  - `IMPLEMENTED.md` — shipped features.
-  - `IMPROVEMENTS.md` — roadmap.
-  - `DEPLOYMENT.md` — systemd, uv/venv, Docker.
-  - `PERSISTENCE.md` — Phase 3 SQLite templates design.
+Quick overview
+- Purpose: A small Flask app to accept grouped “tasks” from users and print each task as an individual receipt on thermal printers (USB, network, serial).
+- Rendering: Uses Pillow to render typographically-consistent images; `python-escpos` is used to talk to ESC/POS printers.
+- Background worker: non-blocking queue with a worker that performs printing jobs so HTTP requests return quickly.
 
-## Runtime & Config
-- Config file path resolution:
-  - `TASKPRINTER_CONFIG_PATH` → else `$XDG_CONFIG_HOME/taskprinter/config.json` → else `~/.config/taskprinter/config.json`.
-- Important env vars:
-  - `TASKPRINTER_SECRET_KEY` — Flask secret key.
-  - `TASKPRINTER_CONFIG_PATH` — override config file path.
-  - `TASKPRINTER_JSON_LOGS` — `true` for JSON logs.
-  - `TASKPRINTER_MEDIA_PATH` — where uploads (flair images) are stored.
-  - `TASKPRINTER_MAX_UPLOAD_SIZE` — max upload size (bytes, default 5 MiB).
-  - `TASKPRINTER_MAX_CONTENT_LENGTH` — request body cap (default 1 MiB).
-  - Limits: `TASKPRINTER_MAX_SECTIONS`, `TASKPRINTER_MAX_TASKS_PER_SECTION`, `TASKPRINTER_MAX_TASK_LEN`, `TASKPRINTER_MAX_SUBTITLE_LEN`, `TASKPRINTER_MAX_TOTAL_CHARS`, `TASKPRINTER_MAX_QR_LEN`.
-- Systemd unit:
-  - Uses `start.sh` as `ExecStart`. Hardened with `NoNewPrivileges`, `ProtectSystem`, `PrivateTmp`, `Restart=on-failure`, optional `DynamicUser`.
-  - Env file: `/etc/default/taskprinter` controls runtime/env.
-- Docker:
-  - USB printers require `--device=/dev/bus/usb` or `--privileged`.
-  - Map config/media via env/volumes.
+Repository map (refactored)
+- `app.py` — thin runner script that imports `create_app` and starts Flask (keeps previous CLI/port behaviour).
+- `task_printer/` — application package
+  - `task_printer/__init__.py` — app factory `create_app(config_overrides=None, blueprints=None, register_worker=True)`; wires templates/static directories to repo-level `templates`/`static`.
+  - `task_printer/core/` — core helpers
+    - `assets.py` — static asset discovery (icons)
+    - `config.py` — config helpers (path resolution, defaults)
+    - `logging.py` — centralized logging configuration (JSON logging support, request ID hooks)
+  - `task_printer/web/` — HTTP layer (each module may register a Flask blueprint)
+    - `routes.py` — main UI / index pages (blueprint `web_bp`)
+    - `setup.py` — setup flow & saving config (`setup_bp`)
+    - `jobs.py` — jobs list and status endpoints (`jobs_bp`)
+    - `health.py` — `/healthz` reporting (`health_bp`)
+  - `task_printer/printing/` — printing and rendering
+    - `render.py` — text → image rendering helpers, font resolution, image composition
+    - `worker.py` — print queue + background worker (`ensure_worker`, queue API)
+- `templates/` — Jinja templates (kept at repo root for easy editing).
+- `static/` — JS/CSS/icons and other static assets (kept at repo root).
+- `docs/` — design docs such as persistence plans and deployment notes.
+- `start.sh`, `install_service.sh`, `Dockerfile`, `requirements.txt` — runtime helpers remain at repo root.
 
-## Request Flow
+Runtime & config
+- Config file lookup:
+  - `TASKPRINTER_CONFIG_PATH` (explicit override) → else `$XDG_CONFIG_HOME/taskprinter/config.json` → else `~/.config/taskprinter/config.json`
+- Important environment variables:
+  - `TASKPRINTER_SECRET_KEY` — Flask secret key used by `create_app`
+  - `TASKPRINTER_CONFIG_PATH` — override config location
+  - `TASKPRINTER_JSON_LOGS` — `true` to enable JSON-formatted logs in `task_printer.core.logging`
+  - `TASKPRINTER_MEDIA_PATH` — storage for uploaded flair images
+  - `TASKPRINTER_MAX_UPLOAD_SIZE` — bytes for upload limit (default: 5 MiB)
+  - `TASKPRINTER_MAX_CONTENT_LENGTH` — Flask `MAX_CONTENT_LENGTH` override (default: 1 MiB)
+  - Limits family: `TASKPRINTER_MAX_SECTIONS`, `TASKPRINTER_MAX_TASKS_PER_SECTION`, `TASKPRINTER_MAX_TASK_LEN`, `TASKPRINTER_MAX_SUBTITLE_LEN`, `TASKPRINTER_MAX_TOTAL_CHARS`, `TASKPRINTER_MAX_QR_LEN`
+- App factory behavior:
+  - `create_app(...)` returns a Flask app. It:
+    - Sets `app.secret_key` (from env or a dev default)
+    - Configures `MAX_CONTENT_LENGTH` from env
+    - Initializes `CSRFProtect()` and sets a CSRF cookie on safe requests/redirects
+    - Registers blueprints (a default set is attempted; each registration is non-fatal if module is missing)
+    - Optionally ensures the background worker is started (`register_worker=True`)
+  - Blueprints may be provided explicitly via the `blueprints` argument (list of `(import_path, attr)` tuples).
+
+Request flow (refactored)
 - Setup:
-  - `@before_request` redirects to `/setup` until config exists. `/setup` lists USB via `lsusb` and supports manual entry. Saves config.json then calls `/restart`.
-  - `/restart` responds 204 and exits the process (systemd restarts; manual runs require re‑launch).
-- Index:
-  - Dynamic form builds `subtitle_{i}` and `task_{i}_{j}` (plus flair fields). POST enqueues a job and redirects with `?job=id` for banner polling.
+  - Before request hooks may redirect to `/setup` until a valid config exists (same gating behavior).
+  - `/setup` lists detected USB devices (via `lsusb` or configured helpers), accepts manual entries, saves `config.json`, and triggers process restart flow.
+  - `/restart` is still expected to return 204 and exit the process; systemd will restart the service when installed.
+- Index (`/`):
+  - The UI still builds dynamic form fields (now handled by `task_printer.web.routes`).
+  - POST enqueues a job against the worker queue and redirects back to index with `?job=<id>` so banner polling can show status.
 - Worker:
-  - Consumes jobs and prints per task: top spacing/separator → subtitle text → flair (icon/image/QR) → rendered task image → bottom separator/spacing → cut.
+  - The worker consumes jobs and prints each task with configured spacing and separators. It handles:
+    - Title/subtitle rendering
+    - Flair printing (icon, uploaded image, QR)
+    - Task rendering (image generation via `render.py`)
+    - Cut/paper spacing
+  - The worker module exposes `ensure_worker()` to start a singleton background thread/process and a simple queue API for the web layer to push jobs.
 
-## Printing Details
-- Driver connector chosen by `printer_type`: `Usb`, `Network`, `Serial`. Optional `profile` is passed when set.
-- Fonts: `render_large_text_image` picks a font via `_resolve_font_path` (config override, env, common paths) or loads default.
+Printing details
+- Connector selection is still driven by `printer_type` in config: `Usb`, `Network`, `Serial`. Profiles are passed through where appropriate.
+- Fonts and rendering:
+  - `render.py` centralizes font resolution: it prefers `TASKPRINTER_FONT_PATH` or common system fonts; fallback to Pillow default if none found.
+  - Text and layout are rendered to images to preserve typography before sending to the ESC/POS driver.
 - Flair:
-  - `icon`: resolve from `static/icons/<key>.(png|jpg|jpeg|gif|bmp)`; fallback placeholder if missing.
-  - `image`: uploaded file stored under `MEDIA_PATH` and printed via `p.image(path)`.
-  - `qr`: printed via `p.qr(payload)`.
+  - `icon` picks from `static/icons/<key>.(png|jpg|jpeg|gif|bmp)` discovered by `task_printer.core.assets`.
+  - `image` uploads are stored under `TASKPRINTER_MEDIA_PATH` and referenced by the worker.
+  - `qr` payloads are printed using the ESC/POS driver's QR routines if available, otherwise rendered as an image.
 
-## Routes (current)
-- `GET/POST /` — main UI, queues print job.
-- `GET/POST /setup` — config UI + save.
-- `POST /setup_test_print` — test print using current setup inputs.
-- `POST /test_print` — queue a test print with saved config.
-- `POST /restart` — exits the process after responding.
-- `GET /jobs` — jobs list; `GET /jobs/<id>` — job status JSON.
-- `GET /healthz` — config/worker/printer status JSON.
+Routes (now implemented as blueprints)
+- `GET/POST /` — main UI and job enqueueing (`task_printer.web.routes:web_bp`)
+- `GET/POST /setup` — config UI + save (`task_printer.web.setup:setup_bp`)
+- `POST /setup_test_print` — test print using current setup inputs (implemented inside `setup_bp`)
+- `POST /test_print` — queue a test print with saved config
+- `POST /restart` — exit process after responding (systemd will restart under service install)
+- `GET /jobs` — jobs list UI; `GET /jobs/<id>` — job status JSON (`task_printer.web.jobs:jobs_bp`)
+- `GET /healthz` — config/worker/printer status JSON (`task_printer.web.health:health_bp`)
 
-## Coding Guidelines
-- Logging: use `app.logger.*`; do not use `print()`. Request IDs are auto‑injected; JSON logs via env.
-- CSRF: All forms and AJAX must include tokens (Jinja `csrf_token()` or `X-CSRFToken`).
-- Input limits: enforce in backend; reject control characters; surface errors via `flash`.
-- Keep UI JS self‑contained; avoid nested template literals in JS (build strings safely).
-- Avoid blocking work in routes; enqueue jobs; update `JOBS` state.
-- Keep changes scoped; preserve style and patterns used (e.g., banner polling, dynamic forms).
+Coding guidelines for agents
+- Use `create_app(...)` when writing tests. You can pass `register_worker=False` to avoid the background worker in unit tests.
+- Logging: use `app.logger.*` and the helpers in `task_printer.core.logging`. Do not use plain `print()`.
+- CSRF: All POST routes (and AJAX clients) must include a CSRF token. The app sets a `csrf_token` cookie on safe responses—read it and send via header `X-CSRFToken` or include it in form fields.
+- Validation: Enforce limits server-side (max sections/tasks/chars). Reject control characters and return helpful `flash()` messages to the UI.
+- No blocking work inside request handlers: enqueue work to the worker and return quickly.
+- Blueprint registration: `create_app` attempts to import and register known blueprints, but new endpoints should be added as blueprints under `task_printer.web` and included in the default registration list or passed explicitly to `create_app`.
+- Tests: Add unit tests under `tests/` that create an app via `create_app(...)`. Use `register_worker=False` for tests that don't need the worker.
 
-## Common Pitfalls
-- Restart behavior: In manual runs, `/restart` will stop the process; user must re‑run `./start.sh`.
-- Fonts: If system fonts are missing, app falls back to Pillow default; set `TASKPRINTER_FONT_PATH` or install DejaVu.
-- Icon picker build: Template strings must not embed nested `${...}` expressions that themselves contain `${}`.
-- USB permissions: user may need `lp`/`plugdev`; see `README > Troubleshooting`.
+Common pitfalls (post-refactor)
+- Optional imports: `create_app` intentionally swallows missing blueprint modules to keep the scaffold non-breaking — expect to see debug logs instead of hard failures for missing files.
+- Restart behavior: `POST /restart` still exits the process. When running locally without systemd you must re-run `./start.sh` or `python3 app.py`.
+- Fonts: If fonts are absent, the rendering falls back to Pillow default. For consistent output in Docker or CI, install DejaVu fonts or set `TASKPRINTER_FONT_PATH`.
+- File paths: Templates and static files are served from repo-level `templates/` and `static/` — keep that layout to avoid surprises.
+- Worker concurrency: The worker is a simple background thread/consumer. If you need higher efficiency or persistence, consider the `docs/PERSISTENCE.md` and migrating to a process-based worker (e.g., RQ/Celery) with durable storage.
 
-## Extending the App
-- Phase 3 persistence: See `docs/PERSISTENCE.md` for schema, API, and UI plan to save/load/print templates (with flair).
-- Reliability: Add retries/timeouts around ESC/POS operations, lsusb fallback via `pyusb`.
-- UX: Accessibility improvements, CSS variables for theme, better validation messages.
-- Jobs: Cancel pending jobs, detailed errors, retention controls.
+Extending the app
+- Adding new HTTP endpoints:
+  - Create a blueprint module under `task_printer/web` and add it to the default blueprint list in `task_printer.__init__.py` (or pass it to `create_app` during app creation).
+  - Respect CSRF/injection patterns and add tests.
+- Adding a new printer connector or profile:
+  - Add connector code to `task_printer.printing` (or a `connectors` submodule). Keep ESC/POS-specific calls isolated and add retries/timeouts.
+- Persistence & templates:
+  - See `docs/PERSISTENCE.md` for Phase 3 design. If you implement DB schema, provide bootstrapping in `create_app` or a separate `init_db` CLI helper.
+- Reliability:
+  - Add retries and timeouts around external IO (USB/network).
+  - Surface printer errors into job status for easier debugging via `/jobs/<id>`.
 
-## Dev Setup
+Developer workflow & tips
+- Before editing, inspect `task_printer/__init__.py` to understand how the app is wired.
+- When adding files, prefer placing them under `task_printer/` to keep the package coherent.
+- Run unit tests with the project root as working directory so template/static discovery works.
+- Use `create_app(config_overrides=..., register_worker=False)` for isolated web tests.
+- Logging: include `g.request_id` in logs; `task_printer.core.logging` attempts to wire this in. Use structured logs (JSON) behind `TASKPRINTER_JSON_LOGS=true` where appropriate.
+
+Dev setup (how to run locally)
+- Create a virtualenv and install deps:
+  - `python3 -m venv .venv && source .venv/bin/activate`
+  - `pip install -r requirements.txt`
 - Quick run:
-  - `./scripts/setup_fedora.sh --yes` (Fedora) or manual venv/uv + `pip install -r requirements.txt`.
-  - `./start.sh` (uses uv/venv if present) or `python3 app.py`.
-- Icons: drop images into `static/icons/` (auto‑scanned on page render).
-- Media uploads: stored under `TASKPRINTER_MEDIA_PATH` (ensure writable).
+  - `./start.sh` (this uses the project `app.py` runner) or:
+  - `python3 app.py` — this imports `create_app()` and starts Flask on `TASKPRINTER_PORT` or `5001` by default.
+- Systemd:
+  - `install_service.sh` installs a hardened unit that uses `start.sh` and an `/etc/default/taskprinter` env file.
+- Docker:
+  - If using USB printers in containers, pass `--device=/dev/bus/usb` or run privileged. Mount `TASKPRINTER_CONFIG_PATH` and `TASKPRINTER_MEDIA_PATH` to preserve config and uploads.
 
-## Definition of Done (typical changes)
-- Logging in place; no `print()`; request IDs visible in logs.
-- CSRF respected for all new POSTs; inputs validated with existing limits.
-- No blocking work in routes; jobs enqueued where appropriate.
-- UI changes work on narrow screens; no overlap with the topbar; hard refresh tested.
-- Docs updated when adding features or env vars (README and docs/*).
+Definition of done for changes
+- No `print()` statements; use `app.logger`.
+- CSRF compliance for all POSTs and AJAX.
+- Backend enforces input limits and rejects control characters.
+- No blocking IO inside request handlers; work enqueued to the worker.
+- Tests added/updated for major behavioral changes; `create_app(register_worker=False)` used for web tests.
+- Docs updated: if you add env vars, blueprints, or major runtime behavior changes, update `AGENTS.md`, `README.md`, and `docs/*`.
 
-If you’re about to add persistence, start with `docs/PERSISTENCE.md` and implement DB bootstrap + `GET/POST /templates` first to land value incrementally.
+If you plan to add persistence or templates, begin with `docs/PERSISTENCE.md` and implement a small incremental feature such as `GET/POST /templates` plus DB bootstrap. That approach keeps the change set reviewable and low-risk.
 
+Contact
+- If you're unsure where to place a change, open a small PR describing the problem and proposed file locations. Prefer small, incremental PRs that update `AGENTS.md` and docs as part of the change.
+
+------------------------------------------------------------
+A final note to you: treat `task_printer` as the canonical place for application logic. Use the thin `app.py` only for small run-time glue. This keeps imports, tests, and deployments predictable.

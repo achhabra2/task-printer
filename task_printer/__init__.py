@@ -156,6 +156,7 @@ def create_app(
         ("task_printer.web.jobs", "jobs_bp"),  # jobs list/status
         ("task_printer.web.health", "health_bp"),  # health endpoint
         ("task_printer.web.setup", "setup_bp"),  # setup flow
+        ("task_printer.web.templates", "templates_bp"),  # templates CRUD/print
     ]
     for import_path, attr in blueprints or default_blueprints:
         _maybe_register_blueprint(app, import_path, attr)
@@ -179,12 +180,12 @@ def create_app(
 
 # Re-export common blueprints when available for convenience
 try:
-    from .web import health_bp, jobs_bp, setup_bp, web_bp  # type: ignore
+    from .web import health_bp, jobs_bp, setup_bp, templates_bp, web_bp  # type: ignore
 except Exception:
     # Keep names defined for type checkers; actual availability is optional
-    web_bp = jobs_bp = setup_bp = health_bp = None  # type: ignore
+    web_bp = jobs_bp = setup_bp = health_bp = templates_bp = None  # type: ignore
 
-__all__ = ["create_app", "csrf", "health_bp", "jobs_bp", "setup_bp", "web_bp"]
+__all__ = ["create_app", "csrf", "health_bp", "jobs_bp", "setup_bp", "templates_bp", "web_bp"]
 
 # Eagerly import subpackages to avoid implicit namespace package diagnostics in some tooling
 try:

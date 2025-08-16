@@ -146,9 +146,3 @@ tmp/
 *.bak
 *.orig
 *.retry
-
-# Task Printer project specifics (safe ignores)
-# - Favor ignoring generated assets or local state that shouldn't be versioned
-# - Do not ignore static/icons (committed assets)
-static/icons/*.tmp
-static/icons/*~

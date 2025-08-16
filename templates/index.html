@@ -363,7 +363,11 @@
     </button>
     <div class="top-actions">
         <a href="/jobs" class="top-btn">🧾 Jobs</a>
+        <a href="/templates" class="top-btn">📚 Templates</a>
         <a href="/setup" class="top-btn">⚙️ Settings</a>
+        <button type="button" class="top-btn" onclick="saveCurrentAsTemplate()">
+            💾 Save as Template
+        </button>
         <form method="POST" action="/test_print" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit" class="top-btn">🧪 Test Print</button>
@@ -834,5 +838,166 @@
         update();
         dismiss.addEventListener('click', () => { if (timer) clearInterval(timer); container.style.display='none'; });
     })();
+
+    // CSRF helpers (cookie -> header)
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) {
+            return decodeURIComponent(parts.pop().split(';').shift());
+        }
+        return '';
+    }
+    function csrfHeader(headers = {}) {
+        const token = getCookie('csrf_token');
+        if (token) headers['X-CSRFToken'] = token;
+        return headers;
+    }
+
+    // Collect current form into sections/tasks structure
+    function collectFormSections() {
+        const sections = [];
+        const container = document.getElementById('subtitleSections');
+        const sectionDivs = container.querySelectorAll('.subtitle-section');
+        sectionDivs.forEach(sec => {
+            const sid = sec.getAttribute('data-section');
+            const subtitleInput = sec.querySelector(`#subtitle_${sid}`);
+            const subtitle = (subtitleInput && subtitleInput.value || '').trim();
+            const tasks = [];
+            const taskContainer = sec.querySelector('.taskContainer');
+            const taskRows = taskContainer.querySelectorAll('.task-input');
+            taskRows.forEach((row, idx) => {
+                const tnum = idx + 1;
+                const input = row.querySelector(`input[name="task_${sid}_${tnum}"]`);
+                const text = (input && input.value || '').trim();
+                if (!text) return;
+                const flairRow = taskContainer.querySelector(`.flair-row[data-for="${sid}_${tnum}"]`);
+                let flair_type = 'none';
+                let flair_value = null;
+                if (flairRow) {
+                    const sel = flairRow.querySelector(`select[name="flair_type_${sid}_${tnum}"]`);
+                    if (sel) flair_type = sel.value || 'none';
+                    if (flair_type === 'icon') {
+                        const checked = flairRow.querySelector(`input[name="flair_icon_${sid}_${tnum}"]:checked`);
+                        flair_value = checked ? checked.value : null;
+                        if (!flair_value) flair_type = 'none';
+                    } else if (flair_type === 'qr') {
+                        const qr = flairRow.querySelector(`input[name="flair_qr_${sid}_${tnum}"]`);
+                        flair_value = qr ? (qr.value || '').trim() : null;
+                        if (!flair_value) flair_type = 'none';
+                    } else if (flair_type === 'image') {
+                        // Cannot serialize file inputs in JSON; skip image flair when saving as template via JSON.
+                        flair_type = 'none';
+                        flair_value = null;
+                    }
+                }
+                tasks.push({ text, flair_type, flair_value });
+            });
+            if (subtitle || tasks.length) {
+                sections.push({ subtitle, tasks });
+            }
+        });
+        return sections;
+    }
+
+    async function saveCurrentAsTemplate() {
+        const name = (prompt('Save as Template — name:', '') || '').trim();
+        if (!name) return;
+        const notes = (prompt('Optional notes:', '') || '').trim();
+        const sections = collectFormSections();
+        if (!sections.length) {
+            alert('No tasks to save.');
+            return;
+        }
+        try {
+            const res = await fetch('/templates', {
+                method: 'POST',
+                headers: csrfHeader({
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }),
+                body: JSON.stringify({ name, notes, sections })
+            });
+            if (!res.ok) {
+                const err = await (async () => { try { return await res.json(); } catch { return {}; } })();
+                alert('Save failed: ' + (err.error || res.statusText));
+                return;
+            }
+            // Go to Templates page after save
+            location.href = '/templates';
+        } catch (e) {
+            alert('Save failed: ' + e);
+        }
+    }
+
+    // Build the form from a saved template (set by /templates Load action)
+    (function() {
+        try {
+            const raw = localStorage.getItem('taskprinter:prefill_template');
+            if (!raw) return;
+            localStorage.removeItem('taskprinter:prefill_template');
+            const data = JSON.parse(raw);
+            prefillFromTemplateData(data);
+        } catch (e) {
+            // ignore
+        }
+    })();
+
+    function prefillFromTemplateData(tpl) {
+        const container = document.getElementById('subtitleSections');
+        if (!container) return;
+        // Reset sections
+        container.innerHTML = '';
+        sectionCount = 0;
+        taskCounts = {};
+        const sections = Array.isArray(tpl.sections) ? tpl.sections : [];
+        sections.forEach((sec, sIdx) => {
+            addSubtitleSection();
+            const sectionDiv = container.lastElementChild;
+            if (!sectionDiv) return;
+            const sid = sectionDiv.getAttribute('data-section');
+            const subInput = sectionDiv.querySelector(`#subtitle_${sid}`);
+            if (subInput) subInput.value = sec.subtitle || '';
+            const tasks = Array.isArray(sec.tasks) ? sec.tasks : [];
+            // Ensure at least one task row exists
+            if (tasks.length === 0) {
+                // leave default empty
+                return;
+            }
+            // Set first task
+            const firstTaskInput = sectionDiv.querySelector(`input[name="task_${sid}_1"]`);
+            if (firstTaskInput) firstTaskInput.value = tasks[0].text || '';
+            setFlairForTask(sectionDiv, sid, 1, tasks[0]);
+            // Additional tasks
+            for (let i = 1; i < tasks.length; i++) {
+                const addBtn = sectionDiv.querySelector('.add-task-btn');
+                if (addBtn) addTask(addBtn);
+                const tnum = i + 1;
+                const taskInput = sectionDiv.querySelector(`input[name="task_${sid}_${tnum}"]`);
+                if (taskInput) taskInput.value = tasks[i].text || '';
+                setFlairForTask(sectionDiv, sid, tnum, tasks[i]);
+            }
+            // Update remove buttons for neatness
+            const taskContainer = sectionDiv.querySelector('.taskContainer');
+            if (taskContainer) updateRemoveButtons(taskContainer);
+        });
+
+        function setFlairForTask(sectionDiv, sid, tnum, t) {
+            const rowSel = sectionDiv.querySelector(`select[name="flair_type_${sid}_${tnum}"]`);
+            if (!rowSel) return;
+            const ftype = (t && t.flair_type) ? String(t.flair_type) : 'none';
+            const fval = t ? t.flair_value : null;
+            rowSel.value = ftype;
+            onFlairTypeChange(rowSel);
+            if (ftype === 'icon' && fval) {
+                const radio = sectionDiv.querySelector(`input[name="flair_icon_${sid}_${tnum}"][value="${CSS.escape(String(fval))}"]`);
+                if (radio) radio.checked = true;
+            } else if (ftype === 'qr' && fval) {
+                const qr = sectionDiv.querySelector(`input[name="flair_qr_${sid}_${tnum}"]`);
+                if (qr) qr.value = String(fval);
+            }
+            // images cannot be prefilled due to browser file input restrictions
+        }
+    }
 </script>
 {% endblock %}

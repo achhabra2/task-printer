@@ -1,0 +1,343 @@
+{% extends "base.html" %} {% block content %}
+<style>
+    .page {
+        max-width: 900px;
+        margin: 24px auto;
+        padding: 0 16px 40px;
+    }
+    .header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: space-between;
+        margin: 18px 0 12px;
+    }
+    .header .title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .back-btn,
+    .primary-btn,
+    .secondary-btn,
+    .danger-btn,
+    .ghost-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        text-decoration: none;
+        color: #fff;
+        background: #007bff;
+    }
+    .back-btn {
+        background: #6c757d;
+    }
+    .back-btn:hover {
+        background: #5a6268;
+    }
+    .primary-btn {
+        background: #007bff;
+    }
+    .primary-btn:hover {
+        background: #0056b3;
+    }
+    .secondary-btn {
+        background: #17a2b8;
+    }
+    .secondary-btn:hover {
+        background: #128196;
+    }
+    .danger-btn {
+        background: #dc3545;
+    }
+    .danger-btn:hover {
+        background: #b12a37;
+    }
+    .ghost-btn {
+        background: transparent;
+        color: #007bff;
+        border: 1px solid #007bff;
+    }
+    .ghost-btn:hover {
+        background: #e7f1ff;
+    }
+
+    .card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+        padding: 18px;
+    }
+
+    .templates-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .templates-table th,
+    .templates-table td {
+        text-align: left;
+        padding: 12px 10px;
+        border-bottom: 1px solid #e9ecef;
+        vertical-align: middle;
+    }
+    .templates-table th {
+        font-weight: 700;
+        color: #495057;
+    }
+    .name-cell {
+        font-weight: 700;
+        color: #212529;
+    }
+    .meta {
+        font-size: 12px;
+        color: #6c757d;
+    }
+    .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .flash {
+        padding: 12px;
+        margin: 12px 0 16px;
+        border-radius: 8px;
+        border-left: 4px solid;
+    }
+    .flash.success {
+        background-color: #d4edda;
+        border-color: #28a745;
+        color: #155724;
+    }
+    .flash.error {
+        background-color: #f8d7da;
+        border-color: #dc3545;
+        color: #721c24;
+    }
+
+    .empty {
+        text-align: center;
+        color: #6c757d;
+        padding: 30px 0 10px;
+    }
+
+    @media (max-width: 680px) {
+        .meta-hide-sm {
+            display: none;
+        }
+    }
+</style>
+
+<div class="page">
+    <div class="header">
+        <div class="title">
+            <a class="back-btn" href="/">← Back</a>
+            <h2 style="margin: 0">Templates</h2>
+        </div>
+        <div class="actions">
+            <a class="ghost-btn" href="/setup">⚙️ Settings</a>
+            <a class="ghost-btn" href="/jobs">🧾 Jobs</a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %} {% if
+    messages %} {% for category, message in messages %}
+    <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %} {% endif %} {% endwith %}
+
+    <div class="card">
+        {% if not templates %}
+        <div class="empty">
+            <div style="font-size: 20px; margin-bottom: 6px">
+                No templates yet
+            </div>
+            <div>Create one from the main page using “Save as Template”.</div>
+        </div>
+        {% else %}
+        <table class="templates-table">
+            <thead>
+                <tr>
+                    <th style="width: 40%">Name</th>
+                    <th class="meta-hide-sm">Counts</th>
+                    <th class="meta-hide-sm">Updated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in templates %}
+                <tr data-template-id="{{ t.id }}">
+                    <td class="name-cell">
+                        {{ t.name }} {% if t.notes %}
+                        <div class="meta" title="{{ t.notes|e }}">
+                            {{ t.notes }}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td class="meta-hide-sm">
+                        <span class="meta">
+                            {{ t.sections_count }} section{{ '' if
+                            t.sections_count == 1 else 's' }}, {{ t.tasks_count
+                            }} task{{ '' if t.tasks_count == 1 else 's' }}
+                        </span>
+                    </td>
+                    <td class="meta-hide-sm">
+                        <span class="meta">
+                            {{ (t.updated_at or t.created_at) or '' }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="actions">
+                            <button
+                                class="secondary-btn"
+                                type="button"
+                                onclick="loadToForm({{ t.id }})"
+                            >
+                                📥 Load
+                            </button>
+
+                            <form
+                                class="inline"
+                                method="POST"
+                                action="/templates/{{ t.id }}/print"
+                                style="display: inline"
+                            >
+                                <input
+                                    type="hidden"
+                                    name="csrf_token"
+                                    value="{{ csrf_token() }}"
+                                />
+                                <button class="primary-btn" type="submit">
+                                    🖨️ Print
+                                </button>
+                            </form>
+
+                            <button
+                                class="ghost-btn"
+                                type="button"
+                                onclick="duplicateTemplate({{ t.id }}, {{ t.name|tojson }})"
+                            >
+                                ⎘ Duplicate
+                            </button>
+
+                            <button
+                                class="danger-btn"
+                                type="button"
+                                onclick="deleteTemplate({{ t.id }}, {{ t.name|tojson }})"
+                            >
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    // Helper: read CSRF from cookie (flask-wtf sets csrf_token cookie on safe responses)
+    function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) {
+            return decodeURIComponent(parts.pop().split(";").shift());
+        }
+        return "";
+    }
+    function csrfHeader(headers = {}) {
+        const token = getCookie("csrf_token");
+        if (token) headers["X-CSRFToken"] = token;
+        return headers;
+    }
+
+    async function duplicateTemplate(id, currentName) {
+        const base = (currentName || "Template").trim();
+        const newName = prompt(
+            "Duplicate as (leave empty to auto-suffix):",
+            base + " Copy",
+        );
+        const payload = newName ? { new_name: newName } : {};
+        try {
+            const res = await fetch(`/templates/${id}/duplicate`, {
+                method: "POST",
+                headers: csrfHeader({
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                }),
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) {
+                const err = await safeJson(res);
+                alert("Duplicate failed: " + (err.error || res.statusText));
+                return;
+            }
+            // Reload list
+            location.reload();
+        } catch (e) {
+            alert("Duplicate failed: " + e);
+        }
+    }
+
+    async function deleteTemplate(id, name) {
+        if (!confirm(`Delete template “${name}”? This cannot be undone.`))
+            return;
+        try {
+            const res = await fetch(`/templates/${id}/delete`, {
+                method: "POST",
+                headers: csrfHeader({ Accept: "application/json" }),
+            });
+            if (!res.ok) {
+                const err = await safeJson(res);
+                alert("Delete failed: " + (err.error || res.statusText));
+                return;
+            }
+            // Remove row without full reload for snappier UX
+            const row = document.querySelector(`tr[data-template-id="${id}"]`);
+            if (row) row.remove();
+            // If table emptied, refresh to show empty state
+            if (document.querySelectorAll("tbody tr").length === 0)
+                location.reload();
+        } catch (e) {
+            alert("Delete failed: " + e);
+        }
+    }
+
+    async function loadToForm(id) {
+        try {
+            const res = await fetch(`/templates/${id}`, {
+                headers: { Accept: "application/json" },
+            });
+            if (!res.ok) {
+                const err = await safeJson(res);
+                alert("Load failed: " + (err.error || res.statusText));
+                return;
+            }
+            const data = await res.json();
+            // Stash structure so index can rebuild form on next load.
+            // Index page can read this key and prefill the UI.
+            localStorage.setItem(
+                "taskprinter:prefill_template",
+                JSON.stringify(data),
+            );
+            location.href = "/";
+        } catch (e) {
+            alert("Load failed: " + e);
+        }
+    }
+
+    async function safeJson(res) {
+        try {
+            return await res.json();
+        } catch {
+            return {};
+        }
+    }
+</script>
+{% endblock %}

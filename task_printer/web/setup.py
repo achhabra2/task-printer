@@ -176,7 +176,11 @@ def setup():
     # GET: render setup page
     cfg = load_config()
     return render_template(
-        "setup.html", usb_devices=usb_devices, show_close=show_close, config=cfg, icons=get_available_icons()
+        "setup.html",
+        usb_devices=usb_devices,
+        show_close=show_close,
+        config=cfg,
+        icons=get_available_icons(),
     )
 
 
@@ -206,7 +210,9 @@ def restart():
         try:
             sleep(0.3)
         finally:
-            os._exit(0)
+            # Exit with non-zero to ensure systemd treats this as a failure and
+            # restarts the unit (Restart=on-failure).
+            os._exit(1)
 
     threading.Thread(target=_exit_soon, daemon=True).start()
     return "", 204
