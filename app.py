@@ -260,6 +260,19 @@ def setup():
             task_font_size = 72
         else:
             task_font_size = 60
+        # Profile selection (optional)
+        printer_profile = request.form.get('printer_profile', '').strip()
+        if printer_profile.lower() == 'generic':
+            printer_profile = ''
+
+        # Spacing and formatting preferences
+        try:
+            cut_feed_lines = int(request.form.get('cut_feed_lines', '2'))
+        except ValueError:
+            cut_feed_lines = 2
+        cut_feed_lines = max(0, min(10, cut_feed_lines))
+        print_separators = request.form.get('print_separators') == 'on'
+
         config = {
             'printer_type': printer_type,
             'usb_vendor_id': usb_vendor_id,
@@ -270,6 +283,9 @@ def setup():
             'serial_baudrate': serial_baudrate,
             'receipt_width': receipt_width,
             'task_font_size': task_font_size,
+            'printer_profile': printer_profile,
+            'cut_feed_lines': cut_feed_lines,
+            'print_separators': print_separators,
         }
         save_config(config)
         auto_startup = request.form.get('auto_startup') == 'on'
@@ -301,14 +317,15 @@ def print_tasks(subtitle_tasks):
     try:
         app.logger.info("Attempting to connect to printer...")
         p = None
+        profile = config.get('printer_profile') or None
         if config['printer_type'] == 'usb':
-            p = Usb(int(config['usb_vendor_id'], 16), int(config['usb_product_id'], 16))
+            p = Usb(int(config['usb_vendor_id'], 16), int(config['usb_product_id'], 16), 0, profile=profile) if profile else Usb(int(config['usb_vendor_id'], 16), int(config['usb_product_id'], 16))
         elif config['printer_type'] == 'network':
             from escpos.printer import Network
-            p = Network(config['network_ip'], int(config['network_port']))
+            p = Network(config['network_ip'], int(config['network_port']), profile=profile) if profile else Network(config['network_ip'], int(config['network_port']))
         elif config['printer_type'] == 'serial':
             from escpos.printer import Serial
-            p = Serial(config['serial_port'], baudrate=int(config['serial_baudrate']))
+            p = Serial(config['serial_port'], baudrate=int(config['serial_baudrate']), profile=profile) if profile else Serial(config['serial_port'], baudrate=int(config['serial_baudrate']))
         else:
             raise Exception('Unsupported printer type')
         app.logger.info("Printer connection established")
@@ -318,15 +335,20 @@ def print_tasks(subtitle_tasks):
             app.logger.info(f"Printing receipt for task {i}: {task.strip()} (Subtitle: {subtitle})")
             p.text("\n\n")
             p.set(align='left', bold=False, width=1, height=1)
-            p.text("------------------------------------------------\n")
+            if bool(config.get('print_separators', True)):
+                p.text("------------------------------------------------\n")
             if subtitle:
                 p.set(align='left', bold=False, width=1, height=1)
                 p.text(f"{subtitle}\n")
             img = render_large_text_image(task.strip(), config)
             p.image(img)
             p.set(align='left', bold=False, width=1, height=1)
-            p.text("------------------------------------------------\n")
-            p.text("\n\n")
+            if bool(config.get('print_separators', True)):
+                p.text("------------------------------------------------\n")
+            # Extra blank lines before cutting, configurable
+            extra = int(config.get('cut_feed_lines', 2))
+            if extra > 0:
+                p.text("\n" * extra)
             p.cut()
             app.logger.info(f"Printed and cut receipt for task {i}")
         p.close()

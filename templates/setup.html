@@ -29,6 +29,20 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
       <option value="network" {% if pt=='network' %}selected{% endif %}>Network</option>
       <option value="serial" {% if pt=='serial' %}selected{% endif %}>Serial</option>
     </select>
+
+    <label style="text-align:left;">Printer Profile (optional):</label>
+    {% set profiles = [
+      ('', 'Generic (default)'),
+      ('TM-P80', 'Epson TM-P80'),
+      ('TM-T88III', 'Epson TM-T88III'),
+      ('TM-T20III', 'Epson TM-T20III')
+    ] %}
+    {% set sel_profile = (config.printer_profile if config and config.printer_profile is not none else '') %}
+    <select name="printer_profile" id="printer_profile">
+      {% for val, label in profiles %}
+        <option value="{{ val }}" {% if sel_profile==val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
     <label class="usb-printer-label">Select your USB printer:</label>
     <div id="usb_fields" class="usb-list">
       {% if usb_devices and usb_devices|length > 0 %}
@@ -63,6 +77,14 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
         <input name="usb_product_id" value="{{ (config.usb_product_id if config else '0x0e28') }}">
         <div class="help">Find this by running <code>lsusb</code>. Example: <code>ID 04b8:0e28</code> → Product ID: <b>0x0e28</b></div>
       </div>
+    </div>
+    <div id="formatting_fields" style="margin-top: 12px;">
+      <label>Blank lines before cut (0–10):</label>
+      <input type="number" name="cut_feed_lines" min="0" max="10" value="{{ (config.cut_feed_lines if config and config.cut_feed_lines is not none else 2) }}">
+      <div class="help">Controls extra blank lines added at the end of each receipt before cutting.</div>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:normal;margin-top:10px;">
+        <input type="checkbox" name="print_separators" {% if not config or config.print_separators %}checked{% endif %}> Print dashed separators around tasks
+      </label>
     </div>
     <div id="network_fields" style="display:none;">
       <label>Network IP:</label> <input name="network_ip" value="{{ (config.network_ip if config else '') }}"><br>

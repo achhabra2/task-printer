@@ -226,12 +226,8 @@
         .top-actions { display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
         .top-btn { display:inline-flex; align-items:center; gap:6px; background: #007bff; color:#fff; border:none; border-radius: 20px; padding: 8px 14px; font-size: 14px; cursor:pointer; text-decoration:none; }
         .top-btn:hover { background:#0056b3; color:#fff; text-decoration:none; }
-        .top-btn.info { background:#17a2b8; }
-        .top-btn.info:hover { background:#117a8b; }
         body.dark-mode .top-btn { background:#0056b3; }
         body.dark-mode .top-btn:hover { background:#003a7a; }
-        body.dark-mode .top-btn.info { background:#117a8b; }
-        body.dark-mode .top-btn.info:hover { background:#0b5964; }
         .inline-form { display:inline; margin:0; padding:0; }
         /* Dark mode toggle */
         .dark-mode-toggle { background:#e7e7e7; color:#222; border:none; border-radius:20px; padding:8px 14px; cursor:pointer; }
@@ -255,7 +251,7 @@
     <a href="/setup" class="top-btn">⚙️ Settings</a>
     <form method="POST" action="/test_print" class="inline-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="top-btn info">🧪 Test Print</button>
+      <button type="submit" class="top-btn">🧪 Test Print</button>
     </form>
   </div>
   

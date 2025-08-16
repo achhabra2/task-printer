@@ -64,6 +64,11 @@ We focused on HTML correctness and UX, non-blocking print execution, safer confi
 - File: `app.py`
 - `GET /healthz` returns JSON including worker status (started/alive), queue size, config presence, and basic printer reachability.
 
+11) Printer profile selection
+- Files: `app.py`, `templates/setup.html`
+- Added optional printer profile selection (e.g., `TM-P80`, `TM-T88III`, `TM-T20III`).
+- Defaults to generic when not set. The selected profile is passed to the ESC/POS driver for USB/Network/Serial connections.
+
 ## Usage Guide
 
 1) First run / setup
