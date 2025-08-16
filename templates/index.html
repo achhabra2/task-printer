@@ -1,644 +1,838 @@
-{% extends "base.html" %}
-{% block content %}
+{% extends "base.html" %} {% block content %}
 <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-            color: #222;
-            transition: background 0.2s, color 0.2s;
-        }
-        body.dark-mode {
-            background-color: #181a1b;
-            color: #e0e0e0;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            transition: background 0.2s, color 0.2s;
-        }
-        body.dark-mode .container {
-            background: #23272a;
-            color: #e0e0e0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.4);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        body.dark-mode h1 {
-            color: #fff;
-        }
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-weight: bold;
-            color: #555;
-        }
-        body.dark-mode label {
-            color: #e0e0e0;
-        }
-        textarea {
-            width: 100%;
-            height: 200px;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 4px;
-            font-family: inherit;
-            font-size: 14px;
-            resize: vertical;
-            box-sizing: border-box;
-        }
-        textarea:focus {
-            outline: none;
-            border-color: #007bff;
-        }
-        .task-input {
-            display: flex;
-            align-items: stretch;
-            gap: 10px;
-            height: 48px;
-            margin-bottom: 16px;
-        }
-        .task-input input {
-            flex: 1;
-            height: 100%;
-            box-sizing: border-box;
-            padding: 10px;
-            border: 2px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            background: #fff;
-            color: #222;
-            transition: background 0.2s, color 0.2s, border 0.2s;
-        }
-        .task-input input:focus {
-            outline: none;
-            border-color: #007bff;
-        }
-        body.dark-mode .task-input input {
-            background: #23272a;
-            color: #e0e0e0;
-            border: 2px solid #444;
-        }
-        .remove-task {
-            background-color: #dc3545;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            width: 48px;
-            height: 100%;
-            padding: 0;
-            cursor: pointer;
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            margin: 0;
-            transition: background 0.2s;
-        }
-        .remove-task:hover {
-            background-color: #c82333;
-        }
-        body.dark-mode .remove-task {
-            background-color: #a72836;
-            color: #fff;
-        }
-        body.dark-mode .remove-task:hover {
-            background-color: #7a1d27;
-        }
-        .flair-row { display:flex; align-items:center; gap:8px; margin: -6px 0 12px 80px; font-size: 12px; }
-        .flair-row label { margin: 0; font-weight: normal; color:#666; }
-        .flair-row select, .flair-row input { padding:4px 6px; font-size: 12px; border:1px solid #ccc; border-radius:4px; }
-        body.dark-mode .flair-row label { color:#bdbdbd; }
-        body.dark-mode .flair-row select, body.dark-mode .flair-row input { background:#23272a; color:#e0e0e0; border-color:#444; }
-        .icon-option { display:inline-flex; align-items:center; gap:6px; margin-right:8px; cursor:pointer; }
-        .icon-option img { width:20px; height:20px; object-fit:contain; border-radius:3px; background:#fff; }
-        .flair-preview { width:40px; height:40px; object-fit:contain; border:1px dashed #ccc; border-radius:4px; display:none; }
-        .add-task-btn {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 10px 16px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-bottom: 20px;
-            width: 100%;
-            transition: background 0.2s;
-        }
-        .add-task-btn:hover {
-            background-color: #218838;
-        }
-        body.dark-mode .add-task-btn {
-            background-color: #206c37;
-            color: #fff;
-        }
-        body.dark-mode .add-task-btn:hover {
-            background-color: #174d27;
-        }
-        .flash {
-            padding: 12px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-            border-left: 4px solid;
-        }
-        .flash.success {
-            background-color: #d4edda;
-            border-color: #28a745;
-            color: #155724;
-        }
-        .flash.error {
-            background-color: #f8d7da;
-            border-color: #dc3545;
-            color: #721c24;
-        }
-        body.dark-mode .flash.success {
-            background-color: #23422a;
-            color: #b6f7c1;
-            border-color: #28a745;
-        }
-        body.dark-mode .flash.error {
-            background-color: #4a2327;
-            color: #f7b6c1;
-            border-color: #dc3545;
-        }
-        .instructions {
-            background-color: #e7f3ff;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            border-left: 4px solid #007bff;
-        }
-        body.dark-mode .instructions {
-            background-color: #232c3a;
-            color: #b3c7e6;
-            border-left: 4px solid #339cff;
-        }
-        .instructions h3 {
-            margin-top: 0;
-            color: #0056b3;
-        }
-        body.dark-mode .instructions h3 {
-            color: #339cff;
-        }
-        .instructions ul {
-            margin: 10px 0;
-            padding-left: 20px;
-        }
-        .task-label {
-            min-width: 60px;
-            width: 80px;
-            font-weight: bold;
-            color: #555;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding-left: 0;
-            margin-left: 0;
-        }
-        body.dark-mode .task-label {
-            color: #e0e0e0;
-        }
-        /* Primary submit button in the task form */
-        #taskForm button[type="submit"] {
-            background-color: #007bff;
-            color: white;
-            padding: 16px 0;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 18px;
-            width: 100%;
-            margin-top: 10px;
-            transition: background 0.2s;
-        }
-        #taskForm button[type="submit"]:hover {
-            background-color: #0056b3;
-        }
-        body.dark-mode #taskForm button[type="submit"] {
-            background-color: #0056b3;
-            color: #fff;
-        }
-        body.dark-mode #taskForm button[type="submit"]:hover {
-            background-color: #003a7a;
-        }
-        /* Top bar */
-        .topbar { display:flex; align-items:center; justify-content: space-between; gap: 10px; margin: 16px 0; flex-wrap: wrap; }
-        .top-actions { display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
-        .top-btn { display:inline-flex; align-items:center; gap:6px; background: #007bff; color:#fff; border:none; border-radius: 20px; padding: 8px 14px; font-size: 14px; cursor:pointer; text-decoration:none; }
-        .top-btn:hover { background:#0056b3; color:#fff; text-decoration:none; }
-        body.dark-mode .top-btn { background:#0056b3; }
-        body.dark-mode .top-btn:hover { background:#003a7a; }
-        .inline-form { display:inline; margin:0; padding:0; }
-        /* Dark mode toggle */
-        .dark-mode-toggle { background:#e7e7e7; color:#222; border:none; border-radius:20px; padding:8px 14px; cursor:pointer; }
-        .dark-mode-toggle:hover { background:#d0d0d0; }
-        body.dark-mode .dark-mode-toggle { background:#23272a; color:#fff; }
-        body.dark-mode .dark-mode-toggle:hover { background:#444b52; }
-        /* Fix for dark mode input fields */
-        body.dark-mode input[type="text"],
-        body.dark-mode input[type="text"]:focus,
-        body.dark-mode input[type="text"]:active {
-            background: #fff !important;
-            color: #222 !important;
-            border: 2px solid #444;
-        }
-        .top-buttons-gap { height: 0; }
+    body {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+        color: #222;
+        transition:
+            background 0.2s,
+            color 0.2s;
+    }
+    body.dark-mode {
+        background-color: #181a1b;
+        color: #e0e0e0;
+    }
+    .container {
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        transition:
+            background 0.2s,
+            color 0.2s;
+    }
+    body.dark-mode .container {
+        background: #23272a;
+        color: #e0e0e0;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    }
+    h1 {
+        color: #333;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    body.dark-mode h1 {
+        color: #fff;
+    }
+    label {
+        display: block;
+        margin-bottom: 10px;
+        font-weight: bold;
+        color: #555;
+    }
+    body.dark-mode label {
+        color: #e0e0e0;
+    }
+    textarea {
+        width: 100%;
+        height: 200px;
+        padding: 12px;
+        border: 2px solid #ddd;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 14px;
+        resize: vertical;
+        box-sizing: border-box;
+    }
+    textarea:focus {
+        outline: none;
+        border-color: #007bff;
+    }
+    .task-input {
+        display: flex;
+        align-items: stretch;
+        gap: 10px;
+        height: 48px;
+        margin-bottom: 16px;
+    }
+    .task-input input {
+        flex: 1;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 10px;
+        border: 2px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        background: #fff;
+        color: #222;
+        transition:
+            background 0.2s,
+            color 0.2s,
+            border 0.2s;
+    }
+    .task-input input:focus {
+        outline: none;
+        border-color: #007bff;
+    }
+    body.dark-mode .task-input input {
+        background: #23272a;
+        color: #e0e0e0;
+        border: 2px solid #444;
+    }
+    .remove-task {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        width: 48px;
+        height: 100%;
+        padding: 0;
+        cursor: pointer;
+        font-size: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        margin: 0;
+        transition: background 0.2s;
+    }
+    .remove-task:hover {
+        background-color: #c82333;
+    }
+    body.dark-mode .remove-task {
+        background-color: #a72836;
+        color: #fff;
+    }
+    body.dark-mode .remove-task:hover {
+        background-color: #7a1d27;
+    }
+    .flair-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: -6px 0 12px 80px;
+        font-size: 12px;
+    }
+    .flair-row label {
+        margin: 0;
+        font-weight: normal;
+        color: #666;
+    }
+    .flair-row select,
+    .flair-row input {
+        padding: 4px 6px;
+        font-size: 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+    body.dark-mode .flair-row label {
+        color: #bdbdbd;
+    }
+    body.dark-mode .flair-row select,
+    body.dark-mode .flair-row input {
+        background: #23272a;
+        color: #e0e0e0;
+        border-color: #444;
+    }
+    .icon-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-right: 8px;
+        cursor: pointer;
+    }
+    .icon-option img {
+        width: 20px;
+        height: 20px;
+        object-fit: contain;
+        border-radius: 3px;
+        background: #fff;
+    }
+    .flair-preview {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        border: 1px dashed #ccc;
+        border-radius: 4px;
+        display: none;
+    }
+    .add-task-btn {
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 10px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-bottom: 20px;
+        width: 100%;
+        transition: background 0.2s;
+    }
+    .add-task-btn:hover {
+        background-color: #218838;
+    }
+    body.dark-mode .add-task-btn {
+        background-color: #206c37;
+        color: #fff;
+    }
+    body.dark-mode .add-task-btn:hover {
+        background-color: #174d27;
+    }
+    .flash {
+        padding: 12px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+        border-left: 4px solid;
+    }
+    .flash.success {
+        background-color: #d4edda;
+        border-color: #28a745;
+        color: #155724;
+    }
+    .flash.error {
+        background-color: #f8d7da;
+        border-color: #dc3545;
+        color: #721c24;
+    }
+    body.dark-mode .flash.success {
+        background-color: #23422a;
+        color: #b6f7c1;
+        border-color: #28a745;
+    }
+    body.dark-mode .flash.error {
+        background-color: #4a2327;
+        color: #f7b6c1;
+        border-color: #dc3545;
+    }
+    .instructions {
+        background-color: #e7f3ff;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        border-left: 4px solid #007bff;
+    }
+    body.dark-mode .instructions {
+        background-color: #232c3a;
+        color: #b3c7e6;
+        border-left: 4px solid #339cff;
+    }
+    .instructions h3 {
+        margin-top: 0;
+        color: #0056b3;
+    }
+    body.dark-mode .instructions h3 {
+        color: #339cff;
+    }
+    .instructions ul {
+        margin: 10px 0;
+        padding-left: 20px;
+    }
+    .task-label {
+        min-width: 60px;
+        width: 80px;
+        font-weight: bold;
+        color: #555;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding-left: 0;
+        margin-left: 0;
+    }
+    body.dark-mode .task-label {
+        color: #e0e0e0;
+    }
+    /* Primary submit button in the task form */
+    #taskForm button[type="submit"] {
+        background-color: #007bff;
+        color: white;
+        padding: 16px 0;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 18px;
+        width: 100%;
+        margin-top: 10px;
+        transition: background 0.2s;
+    }
+    #taskForm button[type="submit"]:hover {
+        background-color: #0056b3;
+    }
+    body.dark-mode #taskForm button[type="submit"] {
+        background-color: #0056b3;
+        color: #fff;
+    }
+    body.dark-mode #taskForm button[type="submit"]:hover {
+        background-color: #003a7a;
+    }
+    /* Top bar */
+    .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 16px 0;
+        flex-wrap: wrap;
+    }
+    .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+    .top-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 20px;
+        padding: 8px 14px;
+        font-size: 14px;
+        cursor: pointer;
+        text-decoration: none;
+    }
+    .top-btn:hover {
+        background: #0056b3;
+        color: #fff;
+        text-decoration: none;
+    }
+    body.dark-mode .top-btn {
+        background: #0056b3;
+    }
+    body.dark-mode .top-btn:hover {
+        background: #003a7a;
+    }
+    .inline-form {
+        display: inline;
+        margin: 0;
+        padding: 0;
+    }
+    /* Dark mode toggle */
+    .dark-mode-toggle {
+        background: #e7e7e7;
+        color: #222;
+        border: none;
+        border-radius: 20px;
+        padding: 8px 14px;
+        cursor: pointer;
+    }
+    .dark-mode-toggle:hover {
+        background: #d0d0d0;
+    }
+    body.dark-mode .dark-mode-toggle {
+        background: #23272a;
+        color: #fff;
+    }
+    body.dark-mode .dark-mode-toggle:hover {
+        background: #444b52;
+    }
+    /* Fix for dark mode input fields */
+    body.dark-mode input[type="text"],
+    body.dark-mode input[type="text"]:focus,
+    body.dark-mode input[type="text"]:active {
+        background: #fff !important;
+        color: #222 !important;
+        border: 2px solid #444;
+    }
+    .top-buttons-gap {
+        height: 0;
+    }
 </style>
 <div class="topbar">
-  <button class="dark-mode-toggle" onclick="toggleDarkMode()" id="darkModeBtn">🌙 Dark Mode</button>
-  <div class="top-actions">
-    <a href="/jobs" class="top-btn">🧾 Jobs</a>
-    <a href="/setup" class="top-btn">⚙️ Settings</a>
-    <form method="POST" action="/test_print" class="inline-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button type="submit" class="top-btn">🧪 Test Print</button>
-    </form>
-  </div>
-  
+    <button
+        class="dark-mode-toggle"
+        onclick="toggleDarkMode()"
+        id="darkModeBtn"
+    >
+        🌙 Dark Mode
+    </button>
+    <div class="top-actions">
+        <a href="/jobs" class="top-btn">🧾 Jobs</a>
+        <a href="/setup" class="top-btn">⚙️ Settings</a>
+        <form method="POST" action="/test_print" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="top-btn">🧪 Test Print</button>
+        </form>
+    </div>
 </div>
 <div class="container">
-        <h1>📋 Task Printer</h1>
-        {% if job_id %}
-        <div id="jobStatus" data-job-id="{{ job_id }}" class="job-banner">
-            <strong>Job {{ job_id[:8] }}</strong>
-            <span id="jobStatusText">Checking…</span>
-            <button type="button" id="jobDismissBtn" aria-label="Dismiss">✕</button>
-        </div>
-        {% endif %}
-        
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash {{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        
-        <!-- Instructions -->
-        <div class="instructions">
-            <h3>How to use:</h3>
-            <ul>
-                <li>Use the <b>⚙️ Settings</b> button to configure your printer and preferences</li>
-                <li>Each section can have a <b>subtitle</b> (e.g., "Cleaning kitchen") and multiple tasks</li>
-                <li>Click <b>➕ Add Subtitle Section</b> to add a new group of tasks with its own subtitle</li>
-                <li>Click <b>➕ Add Task</b> to add more task fields within a section</li>
-                <li>Click <b>Print Tasks</b> to print each task as a separate receipt</li>
-                <li>All printing is sent directly to your configured USB/network/serial printer</li>
-            </ul>
-        </div>
-        
-        <!-- Task Input Form -->
-        <form method="POST" id="taskForm" enctype="multipart/form-data">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <div id="subtitleSections">
-                <div class="subtitle-section" data-section="1" style="margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
-                    <label for="subtitle_1">Subtitle (e.g., Cleaning kitchen):</label>
-                    <input type="text" id="subtitle_1" name="subtitle_1" placeholder="Enter subtitle..." style="width:100%;padding:10px;border:2px solid #ddd;border-radius:4px;font-size:14px;box-sizing:border-box; margin-bottom: 10px;">
+    <h1>📋 Task Printer</h1>
+    {% if job_id %}
+    <div id="jobStatus" data-job-id="{{ job_id }}" class="job-banner">
+        <strong>Job {{ job_id[:8] }}</strong>
+        <span id="jobStatusText">Checking…</span>
+        <button type="button" id="jobDismissBtn" aria-label="Dismiss">✕</button>
+    </div>
+    {% endif %}
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %} {% if
+    messages %} {% for category, message in messages %}
+    <div class="flash {{ category }}">{{ message }}</div>
+    {% endfor %} {% endif %} {% endwith %}
+
+    <!-- Instructions -->
+    <div class="instructions">
+        <h3>How to use:</h3>
+        <ul>
+            <li>
+                Use the <b>⚙️ Settings</b> button to configure your printer and
+                preferences
+            </li>
+            <li>
+                Each section can have a <b>subtitle</b> (e.g., "Cleaning
+                kitchen") and multiple tasks
+            </li>
+            <li>
+                Click <b>➕ Add Subtitle Section</b> to add a new group of tasks
+                with its own subtitle
+            </li>
+            <li>
+                Click <b>➕ Add Task</b> to add more task fields within a
+                section
+            </li>
+            <li>
+                Click <b>Print Tasks</b> to print each task as a separate
+                receipt
+            </li>
+            <li>
+                All printing is sent directly to your configured
+                USB/network/serial printer
+            </li>
+        </ul>
+    </div>
+
+    <!-- Task Input Form -->
+    <form method="POST" id="taskForm" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div id="subtitleSections">
+            <div
+                class="subtitle-section"
+                data-section="1"
+                style="
+                    margin-bottom: 30px;
+                    border-bottom: 1px solid #eee;
+                    padding-bottom: 20px;
+                "
+            >
+                <label for="subtitle_1"
+                    >Subtitle (e.g., Cleaning kitchen):</label
+                >
+                <input
+                    type="text"
+                    id="subtitle_1"
+                    name="subtitle_1"
+                    placeholder="Enter subtitle..."
+                    style="
+                        width: 100%;
+                        padding: 10px;
+                        border: 2px solid #ddd;
+                        border-radius: 4px;
+                        font-size: 14px;
+                        box-sizing: border-box;
+                        margin-bottom: 10px;
+                    "
+                />
                 <div class="taskContainer" id="taskContainer_1">
                     <div class="task-input">
                         <span class="task-label">Task 1:</span>
-                        <input type="text" name="task_1_1" placeholder="Enter task 1..." required>
-                        <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
+                        <input
+                            type="text"
+                            name="task_1_1"
+                            placeholder="Enter task 1..."
+                            required
+                        />
+                        <button
+                            type="button"
+                            class="remove-task"
+                            onclick="removeTask(this)"
+                            style="display: none"
+                        >
+                            ✕
+                        </button>
                     </div>
                     <div class="flair-row" data-for="1_1">
                         <label>Flair:</label>
-                        <select name="flair_type_1_1" onchange="onFlairTypeChange(this)">
+                        <select
+                            name="flair_type_1_1"
+                            onchange="onFlairTypeChange(this)"
+                        >
                             <option value="none" selected>None</option>
                             <option value="icon">Icon</option>
                             <option value="image">Image</option>
                             <option value="qr">QR</option>
                         </select>
-                        <div class="flair-icon-picker" style="display:none;">
+                        <div class="flair-icon-picker" style="display: none">
                             {% for ic in icons %}
-                              <label class="icon-option">
-                                <input type="radio" name="flair_icon_1_1" value="{{ ic.name }}">
-                                <img src="{{ url_for('static', filename=ic.filename) }}" alt="{{ ic.name }}" onerror="this.style.display='none'">
-                                <span style="text-transform:capitalize;">{{ ic.name }}</span>
-                              </label>
+                            <label class="icon-option">
+                                <input
+                                    type="radio"
+                                    name="flair_icon_1_1"
+                                    value="{{ ic.name }}"
+                                />
+                                <img
+                                    src="{{ url_for('static', filename=ic.filename) }}"
+                                    alt="{{ ic.name }}"
+                                    onerror="this.style.display='none'"
+                                />
+                                <span style="text-transform: capitalize"
+                                    >{{ ic.name }}</span
+                                >
+                            </label>
                             {% endfor %}
                         </div>
-                        <input type="file" name="flair_image_1_1" class="flair-image" accept="image/*" style="display:none;">
-                        <img class="flair-preview" alt="preview">
-                        <input type="text" name="flair_qr_1_1" class="flair-qr" placeholder="QR data" style="display:none;">
+                        <input
+                            type="file"
+                            name="flair_image_1_1"
+                            class="flair-image"
+                            accept="image/*"
+                            style="display: none"
+                        />
+                        <img class="flair-preview" alt="preview" />
+                        <input
+                            type="text"
+                            name="flair_qr_1_1"
+                            class="flair-qr"
+                            placeholder="QR data"
+                            style="display: none"
+                        />
                     </div>
                 </div>
-                    <button type="button" class="add-task-btn" onclick="addTask(this)">➕ Add Task</button>
-                </div>
+                <button
+                    type="button"
+                    class="add-task-btn"
+                    onclick="addTask(this)"
+                >
+                    ➕ Add Task
+                </button>
             </div>
-            <button type="button" class="add-task-btn" style="background:#007bff; margin-bottom: 30px;" onclick="addSubtitleSection()">➕ Add Subtitle Section</button>
-            <button type="submit">Print Tasks</button>
-        </form>
-    </div>
+        </div>
+        <button
+            type="button"
+            class="add-task-btn"
+            style="background: #007bff; margin-bottom: 30px"
+            onclick="addSubtitleSection()"
+        >
+            ➕ Add Subtitle Section
+        </button>
+        <button type="submit">Print Tasks</button>
+    </form>
+</div>
 
-    <script>
-        // job banner styles
-        (function(){
-            const style = document.createElement('style');
-            style.textContent = `
-            .job-banner { display:flex; align-items:center; gap:10px; padding:8px 10px; border-left:4px solid #007bff; background:#e7f3ff; border-radius:4px; margin-bottom:14px; font-size:14px; }
-            .job-banner #jobDismissBtn { margin-left:auto; background:transparent; border:none; color:#555; font-size:16px; cursor:pointer; }
-            .job-banner #jobDismissBtn:hover { color:#000; }
-            body.dark-mode .job-banner { background:#232c3a; border-left-color:#339cff; color:#b3c7e6; }
-            `;
-            document.head.appendChild(style);
-        })();
-        let sectionCount = 1;
-        let taskCounts = {1: 1};
+<script>
+    // job banner styles
+    (function(){
+        const style = document.createElement('style');
+        style.textContent = `
+        .job-banner { display:flex; align-items:center; gap:10px; padding:8px 10px; border-left:4px solid #007bff; background:#e7f3ff; border-radius:4px; margin-bottom:14px; font-size:14px; }
+        .job-banner #jobDismissBtn { margin-left:auto; background:transparent; border:none; color:#555; font-size:16px; cursor:pointer; }
+        .job-banner #jobDismissBtn:hover { color:#000; }
+        body.dark-mode .job-banner { background:#232c3a; border-left-color:#339cff; color:#b3c7e6; }
+        `;
+        document.head.appendChild(style);
+    })();
+    let sectionCount = 1;
+    let taskCounts = {1: 1};
 
-        function addSubtitleSection() {
-            sectionCount++;
-            taskCounts[sectionCount] = 1;
-            const subtitleSections = document.getElementById('subtitleSections');
-            const sectionDiv = document.createElement('div');
-            sectionDiv.className = 'subtitle-section';
-            sectionDiv.setAttribute('data-section', sectionCount);
-            sectionDiv.style.marginBottom = '30px';
-            sectionDiv.style.borderBottom = '1px solid #eee';
-            sectionDiv.style.paddingBottom = '20px';
-            sectionDiv.innerHTML = `
-                <label for="subtitle_${sectionCount}">Subtitle (e.g., Cleaning kitchen):</label>
-                <input type="text" id="subtitle_${sectionCount}" name="subtitle_${sectionCount}" placeholder="Enter subtitle..." style="width:100%;padding:10px;border:2px solid #ddd;border-radius:4px;font-size:14px;box-sizing:border-box; margin-bottom: 10px;">
-                <div class="taskContainer" id="taskContainer_${sectionCount}">
-                    <div class="task-input">
-                        <span class="task-label">Task 1:</span>
-                        <input type="text" name="task_${sectionCount}_1" placeholder="Enter task 1..." required>
-                        <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
-                    </div>
-                            <div class="flair-row" data-for="${sectionCount}_1">
-                                <label>Flair:</label>
-                                <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)">
-                                    <option value="none" selected>None</option>
-                                    <option value="icon">Icon</option>
-                                    <option value="image">Image</option>
-                                    <option value="qr">QR</option>
-                                </select>
-                                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(${sectionCount}, 1)}</div>
-                                <input type="file" name="flair_image_${sectionCount}_1" class="flair-image" accept="image/*" style="display:none;">
-                                <img class="flair-preview" alt="preview">
-                                <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
-                            </div>
+    function addSubtitleSection() {
+        sectionCount++;
+        taskCounts[sectionCount] = 1;
+        const subtitleSections = document.getElementById('subtitleSections');
+        const sectionDiv = document.createElement('div');
+        sectionDiv.className = 'subtitle-section';
+        sectionDiv.setAttribute('data-section', sectionCount);
+        sectionDiv.style.marginBottom = '30px';
+        sectionDiv.style.borderBottom = '1px solid #eee';
+        sectionDiv.style.paddingBottom = '20px';
+        sectionDiv.innerHTML = `
+            <label for="subtitle_${sectionCount}">Subtitle (e.g., Cleaning kitchen):</label>
+            <input type="text" id="subtitle_${sectionCount}" name="subtitle_${sectionCount}" placeholder="Enter subtitle..." style="width:100%;padding:10px;border:2px solid #ddd;border-radius:4px;font-size:14px;box-sizing:border-box; margin-bottom: 10px;">
+            <div class="taskContainer" id="taskContainer_${sectionCount}">
+                <div class="task-input">
+                    <span class="task-label">Task 1:</span>
+                    <input type="text" name="task_${sectionCount}_1" placeholder="Enter task 1..." required>
+                    <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
                 </div>
-                <button type="button" class="add-task-btn" onclick="addTask(this)">➕ Add Task</button>
-            `;
-            subtitleSections.appendChild(sectionDiv);
-            // Update remove buttons for the new section
-            const newTaskContainer = sectionDiv.querySelector('.taskContainer');
-            updateRemoveButtons(newTaskContainer);
-        }
-
-        function addTask(btn) {
-            const sectionDiv = btn.closest('.subtitle-section');
-            const sectionId = sectionDiv.getAttribute('data-section');
-            taskCounts[sectionId] = (taskCounts[sectionId] || 1) + 1;
-            const taskContainer = sectionDiv.querySelector('.taskContainer');
-            const taskNumber = taskCounts[sectionId];
-            const newTaskDiv = document.createElement('div');
-            newTaskDiv.className = 'task-input';
-            newTaskDiv.innerHTML = `
-                <span class="task-label">Task ${taskNumber}:</span>
-                <input type="text" name="task_${sectionId}_${taskNumber}" placeholder="Enter task ${taskNumber}...">
-                <button type="button" class="remove-task" onclick="removeTask(this)">✕</button>
-            `;
-            taskContainer.appendChild(newTaskDiv);
-            const flairDiv = document.createElement('div');
-            flairDiv.className = 'flair-row';
-            flairDiv.setAttribute('data-for', `${sectionId}_${taskNumber}`);
-            flairDiv.innerHTML = `
-                <label>Flair:</label>
-                <select name="flair_type_${sectionId}_${taskNumber}" onchange="onFlairTypeChange(this)">
-                    <option value="none" selected>None</option>
-                    <option value="icon">Icon</option>
-                    <option value="image">Image</option>
-                    <option value="qr">QR</option>
-                </select>
-                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(sectionId, taskNumber)}</div>
-                <input type="file" name="flair_image_${sectionId}_${taskNumber}" class="flair-image" accept="image/*" style="display:none;">
-                <img class="flair-preview" alt="preview">
-                <input type="text" name="flair_qr_${sectionId}_${taskNumber}" class="flair-qr" placeholder="QR data" style="display:none;">
-            `;
-            taskContainer.appendChild(flairDiv);
-            updateRemoveButtons(taskContainer);
-        }
-
-        function removeTask(btn) {
-            const taskDiv = btn.parentElement;
-            const taskContainer = taskDiv.parentElement;
-            const sectionDiv = taskContainer.closest('.subtitle-section');
-            taskDiv.remove();
-            // Renumber remaining tasks
-            const taskInputs = taskContainer.querySelectorAll('.task-input');
-            if (taskInputs.length === 0) {
-                // Remove the entire subtitle section
-                const subtitleSections = document.getElementById('subtitleSections');
-                subtitleSections.removeChild(sectionDiv);
-                // If no sections left, add a new empty one
-                if (subtitleSections.children.length === 0) {
-                    sectionCount++;
-                    taskCounts[sectionCount] = 1;
-                    const newSection = document.createElement('div');
-                    newSection.className = 'subtitle-section';
-                    newSection.setAttribute('data-section', sectionCount);
-                    newSection.style.marginBottom = '30px';
-                    newSection.style.borderBottom = '1px solid #eee';
-                    newSection.style.paddingBottom = '20px';
-                    const pickerInit = buildIconPickerHtml(sectionCount, 1);
-                    newSection.innerHTML = `
-                        <label for="subtitle_${sectionCount}">Subtitle (e.g., Cleaning kitchen):</label>
-                        <input type="text" id="subtitle_${sectionCount}" name="subtitle_${sectionCount}" placeholder="Enter subtitle..." style="width:100%;padding:10px;border:2px solid #ddd;border-radius:4px;font-size:14px;box-sizing:border-box; margin-bottom: 10px;">
-                        <div class="taskContainer" id="taskContainer_${sectionCount}">
-                            <div class="task-input">
-                                <span class="task-label">Task 1:</span>
-                                <input type="text" name="task_${sectionCount}_1" placeholder="Enter task 1..." required>
-                                <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
-                            </div>
-                            <div class="flair-row" data-for="${sectionCount}_1">
-                                <label>Flair:</label>
-                                <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)">
-                                    <option value="none" selected>None</option>
-                                    <option value="icon">Icon</option>
-                                    <option value="image">Image</option>
-                                    <option value="qr">QR</option>
-                                </select>
-                                <div class="flair-icon-picker" style="display:none;">` + pickerInit + `</div>
-                                <input type="file" name="flair_image_${sectionCount}_1" class="flair-image" accept="image/*" style="display:none;">
-                                <img class="flair-preview" alt="preview">
-                                <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
-                            </div>
+                        <div class="flair-row" data-for="${sectionCount}_1">
+                            <label>Flair:</label>
+                            <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)">
+                                <option value="none" selected>None</option>
+                                <option value="icon">Icon</option>
+                                <option value="image">Image</option>
+                                <option value="qr">QR</option>
+                            </select>
+                            <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(sectionCount, 1)}</div>
+                            <input type="file" name="flair_image_${sectionCount}_1" class="flair-image" accept="image/*" style="display:none;">
+                            <img class="flair-preview" alt="preview">
+                            <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
                         </div>
-                        <button type="button" class="add-task-btn" onclick="addTask(this)">➕ Add Task</button>
-                    `;
-                    subtitleSections.appendChild(newSection);
-                }
-                return;
-            }
-            taskInputs.forEach((row, index) => {
-                const label = row.querySelector('.task-label');
-                const textInput = row.querySelector('input[name^="task_"]');
-                const taskNumber = index + 1;
-                label.textContent = `Task ${taskNumber}:`;
-                // rename task input
-                textInput.name = textInput.name.replace(/^(.*_)(\d+)$/, `$1${taskNumber}`);
-                textInput.placeholder = `Enter task ${taskNumber}...`;
-                // rename associated flair row names
-                const sectionId = sectionDiv.getAttribute('data-section');
-                const flairRow = taskContainer.querySelector(`.flair-row[data-for="${sectionId}_${taskNumber+1}"]`) || taskContainer.querySelector(`.flair-row[data-for]`);
-            });
-            // Adjust all flair rows keys
-            const allFlairs = taskContainer.querySelectorAll('.flair-row');
-            allFlairs.forEach((fr, idx) => {
-                const newNum = idx + 1;
-                const sectionId = sectionDiv.getAttribute('data-section');
-                fr.setAttribute('data-for', `${sectionId}_${newNum}`);
-                fr.querySelectorAll('select, input').forEach(el => {
-                    el.name = el.name.replace(/^(flair_(?:type|icon|qr|image)_\d+_)(\d+)$/, `$1${newNum}`);
-                });
-            });
-            updateRemoveButtons(taskContainer);
-        }
+            </div>
+            <button type="button" class="add-task-btn" onclick="addTask(this)">➕ Add Task</button>
+        `;
+        subtitleSections.appendChild(sectionDiv);
+        // Update remove buttons for the new section
+        const newTaskContainer = sectionDiv.querySelector('.taskContainer');
+        updateRemoveButtons(newTaskContainer);
+    }
 
-        function onFlairTypeChange(sel) {
-            const row = sel.closest('.flair-row');
-            const iconPicker = row.querySelector('.flair-icon-picker');
-            const qrInput = row.querySelector('.flair-qr');
-            const imgInput = row.querySelector('.flair-image');
-            const preview = row.querySelector('.flair-preview');
-            if (sel.value === 'icon') {
-                iconPicker.style.display = '';
-                qrInput.style.display = 'none';
-                imgInput.style.display = 'none';
-                if (preview) { preview.style.display = 'none'; preview.src=''; }
-            } else if (sel.value === 'image') {
-                iconPicker.style.display = 'none';
-                qrInput.style.display = 'none';
-                imgInput.style.display = '';
-            } else if (sel.value === 'qr') {
-                iconPicker.style.display = 'none';
-                qrInput.style.display = '';
-                imgInput.style.display = 'none';
-                if (preview) { preview.style.display = 'none'; preview.src=''; }
-            } else {
-                iconPicker.style.display = 'none';
-                qrInput.style.display = 'none';
-                imgInput.style.display = 'none';
-                if (preview) { preview.style.display = 'none'; preview.src=''; }
-            }
-        }
+    function addTask(btn) {
+        const sectionDiv = btn.closest('.subtitle-section');
+        const sectionId = sectionDiv.getAttribute('data-section');
+        taskCounts[sectionId] = (taskCounts[sectionId] || 1) + 1;
+        const taskContainer = sectionDiv.querySelector('.taskContainer');
+        const taskNumber = taskCounts[sectionId];
+        const newTaskDiv = document.createElement('div');
+        newTaskDiv.className = 'task-input';
+        newTaskDiv.innerHTML = `
+            <span class="task-label">Task ${taskNumber}:</span>
+            <input type="text" name="task_${sectionId}_${taskNumber}" placeholder="Enter task ${taskNumber}...">
+            <button type="button" class="remove-task" onclick="removeTask(this)">✕</button>
+        `;
+        taskContainer.appendChild(newTaskDiv);
+        const flairDiv = document.createElement('div');
+        flairDiv.className = 'flair-row';
+        flairDiv.setAttribute('data-for', `${sectionId}_${taskNumber}`);
+        flairDiv.innerHTML = `
+            <label>Flair:</label>
+            <select name="flair_type_${sectionId}_${taskNumber}" onchange="onFlairTypeChange(this)">
+                <option value="none" selected>None</option>
+                <option value="icon">Icon</option>
+                <option value="image">Image</option>
+                <option value="qr">QR</option>
+            </select>
+            <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(sectionId, taskNumber)}</div>
+            <input type="file" name="flair_image_${sectionId}_${taskNumber}" class="flair-image" accept="image/*" style="display:none;">
+            <img class="flair-preview" alt="preview">
+            <input type="text" name="flair_qr_${sectionId}_${taskNumber}" class="flair-qr" placeholder="QR data" style="display:none;">
+        `;
+        taskContainer.appendChild(flairDiv);
+        updateRemoveButtons(taskContainer);
+    }
 
-        function updateRemoveButtons(taskContainer) {
-            const taskInputs = taskContainer.querySelectorAll('.task-input');
+    function removeTask(btn) {
+        const taskDiv = btn.parentElement;
+        const taskContainer = taskDiv.parentElement;
+        const sectionDiv = taskContainer.closest('.subtitle-section');
+        taskDiv.remove();
+        // Renumber remaining tasks
+        const taskInputs = taskContainer.querySelectorAll('.task-input');
+        if (taskInputs.length === 0) {
+            // Remove the entire subtitle section
             const subtitleSections = document.getElementById('subtitleSections');
-            const isOnlySection = subtitleSections.children.length === 1;
-            taskInputs.forEach((input, idx) => {
-                const removeBtn = input.querySelector('.remove-task');
-                if (removeBtn) {
-                    if (taskInputs.length === 1 && isOnlySection) {
-                        removeBtn.style.display = 'none';
-                    } else {
-                        removeBtn.style.display = 'flex';
-                    }
-                }
+            subtitleSections.removeChild(sectionDiv);
+            // If no sections left, add a new empty one
+            if (subtitleSections.children.length === 0) {
+                sectionCount++;
+                taskCounts[sectionCount] = 1;
+                const newSection = document.createElement('div');
+                newSection.className = 'subtitle-section';
+                newSection.setAttribute('data-section', sectionCount);
+                newSection.style.marginBottom = '30px';
+                newSection.style.borderBottom = '1px solid #eee';
+                newSection.style.paddingBottom = '20px';
+                const pickerInit = buildIconPickerHtml(sectionCount, 1);
+                newSection.innerHTML = `
+                    <label for="subtitle_${sectionCount}">Subtitle (e.g., Cleaning kitchen):</label>
+                    <input type="text" id="subtitle_${sectionCount}" name="subtitle_${sectionCount}" placeholder="Enter subtitle..." style="width:100%;padding:10px;border:2px solid #ddd;border-radius:4px;font-size:14px;box-sizing:border-box; margin-bottom: 10px;">
+                    <div class="taskContainer" id="taskContainer_${sectionCount}">
+                        <div class="task-input">
+                            <span class="task-label">Task 1:</span>
+                            <input type="text" name="task_${sectionCount}_1" placeholder="Enter task 1..." required>
+                            <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
+                        </div>
+                        <div class="flair-row" data-for="${sectionCount}_1">
+                            <label>Flair:</label>
+                            <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)">
+                                <option value="none" selected>None</option>
+                                <option value="icon">Icon</option>
+                                <option value="image">Image</option>
+                                <option value="qr">QR</option>
+                            </select>
+                            <div class="flair-icon-picker" style="display:none;">` + pickerInit + `</div>
+                            <input type="file" name="flair_image_${sectionCount}_1" class="flair-image" accept="image/*" style="display:none;">
+                            <img class="flair-preview" alt="preview">
+                            <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
+                        </div>
+                    </div>
+                    <button type="button" class="add-task-btn" onclick="addTask(this)">➕ Add Task</button>
+                `;
+                subtitleSections.appendChild(newSection);
+            }
+            return;
+        }
+        taskInputs.forEach((row, index) => {
+            const label = row.querySelector('.task-label');
+            const textInput = row.querySelector('input[name^="task_"]');
+            const taskNumber = index + 1;
+            label.textContent = `Task ${taskNumber}:`;
+            // rename task input
+            textInput.name = textInput.name.replace(/^(.*_)(\d+)$/, `$1${taskNumber}`);
+            textInput.placeholder = `Enter task ${taskNumber}...`;
+            // rename associated flair row names
+            const sectionId = sectionDiv.getAttribute('data-section');
+            const flairRow = taskContainer.querySelector(`.flair-row[data-for="${sectionId}_${taskNumber+1}"]`) || taskContainer.querySelector(`.flair-row[data-for]`);
+        });
+        // Adjust all flair rows keys
+        const allFlairs = taskContainer.querySelectorAll('.flair-row');
+        allFlairs.forEach((fr, idx) => {
+            const newNum = idx + 1;
+            const sectionId = sectionDiv.getAttribute('data-section');
+            fr.setAttribute('data-for', `${sectionId}_${newNum}`);
+            fr.querySelectorAll('select, input').forEach(el => {
+                el.name = el.name.replace(/^(flair_(?:type|icon|qr|image)_\d+_)(\d+)$/, `$1${newNum}`);
             });
-        }
+        });
+        updateRemoveButtons(taskContainer);
+    }
 
-        // Dark mode toggle logic
-        function toggleDarkMode() {
-            const body = document.body;
-            const btn = document.getElementById('darkModeBtn');
-            body.classList.toggle('dark-mode');
-            if (body.classList.contains('dark-mode')) {
-                btn.textContent = '☀️ Light Mode';
-                localStorage.setItem('darkMode', 'true');
-            } else {
-                btn.textContent = '🌙 Dark Mode';
-                localStorage.setItem('darkMode', 'false');
-            }
+    function onFlairTypeChange(sel) {
+        const row = sel.closest('.flair-row');
+        const iconPicker = row.querySelector('.flair-icon-picker');
+        const qrInput = row.querySelector('.flair-qr');
+        const imgInput = row.querySelector('.flair-image');
+        const preview = row.querySelector('.flair-preview');
+        if (sel.value === 'icon') {
+            iconPicker.style.display = '';
+            qrInput.style.display = 'none';
+            imgInput.style.display = 'none';
+            if (preview) { preview.style.display = 'none'; preview.src=''; }
+        } else if (sel.value === 'image') {
+            iconPicker.style.display = 'none';
+            qrInput.style.display = 'none';
+            imgInput.style.display = '';
+        } else if (sel.value === 'qr') {
+            iconPicker.style.display = 'none';
+            qrInput.style.display = '';
+            imgInput.style.display = 'none';
+            if (preview) { preview.style.display = 'none'; preview.src=''; }
+        } else {
+            iconPicker.style.display = 'none';
+            qrInput.style.display = 'none';
+            imgInput.style.display = 'none';
+            if (preview) { preview.style.display = 'none'; preview.src=''; }
         }
-        // On page load, set dark mode if preferred
-        (function() {
-            const darkPref = localStorage.getItem('darkMode');
-            const body = document.body;
-            const btn = document.getElementById('darkModeBtn');
-            if (darkPref === 'true') {
-                body.classList.add('dark-mode');
-                btn.textContent = '☀️ Light Mode';
-            } else {
-                body.classList.remove('dark-mode');
-                btn.textContent = '🌙 Dark Mode';
-            }
-        })();
+    }
 
-        // Build icon picker HTML for dynamic rows
-        const ICONS = [
-          {% for ic in icons %}{ name: "{{ ic.name }}", url: "{{ url_for('static', filename=ic.filename) }}" }{% if not loop.last %},{% endif %}{% endfor %}
-        ];
-        function buildIconPickerHtml(sectionId, taskNumber) {
-            if (!ICONS || ICONS.length === 0) return '<em style="color:#888">No icons available</em>';
-            return ICONS.map(ic => `
-              <label class="icon-option">
-                <input type="radio" name="flair_icon_${sectionId}_${taskNumber}" value="${ic.name}">
-                <img src="${ic.url}" alt="${ic.name}" onerror="this.style.display='none'">
-                <span style="text-transform:capitalize;">${ic.name}</span>
-              </label>
-            `).join('');
-        }
-
-        // Preview uploaded image
-        document.addEventListener('change', function(e){
-            if (e.target && e.target.classList.contains('flair-image')) {
-                const input = e.target;
-                const row = input.closest('.flair-row');
-                const preview = row ? row.querySelector('.flair-preview') : null;
-                if (input.files && input.files[0] && preview) {
-                    const reader = new FileReader();
-                    reader.onload = function(ev){
-                        preview.src = ev.target.result;
-                        preview.style.display = 'inline-block';
-                    };
-                    reader.readAsDataURL(input.files[0]);
-                } else if (preview) {
-                    preview.src = '';
-                    preview.style.display = 'none';
+    function updateRemoveButtons(taskContainer) {
+        const taskInputs = taskContainer.querySelectorAll('.task-input');
+        const subtitleSections = document.getElementById('subtitleSections');
+        const isOnlySection = subtitleSections.children.length === 1;
+        taskInputs.forEach((input, idx) => {
+            const removeBtn = input.querySelector('.remove-task');
+            if (removeBtn) {
+                if (taskInputs.length === 1 && isOnlySection) {
+                    removeBtn.style.display = 'none';
+                } else {
+                    removeBtn.style.display = 'flex';
                 }
             }
         });
+    }
 
-        // Optional job status polling
-        (function() {
-            const container = document.getElementById('jobStatus');
-            if (!container) return;
-            const jobId = container.getAttribute('data-job-id');
-            const text = document.getElementById('jobStatusText');
-            const dismiss = document.getElementById('jobDismissBtn');
-            let timer = null;
-            function update() {
-                fetch(`/jobs/${jobId}`).then(r => {
-                    if (!r.ok) { throw new Error('not found'); }
-                    return r.json();
-                }).then(j => {
-                    text.textContent = `— ${j.status}`;
-                    if (j.status === 'success' || j.status === 'error') {
-                        clearInterval(timer);
-                        setTimeout(() => { container.style.display = 'none'; }, 4000);
-                    }
-                }).catch(() => {
-                    text.textContent = '— unavailable';
+    // Dark mode toggle logic
+    function toggleDarkMode() {
+        const body = document.body;
+        const btn = document.getElementById('darkModeBtn');
+        body.classList.toggle('dark-mode');
+        if (body.classList.contains('dark-mode')) {
+            btn.textContent = '☀️ Light Mode';
+            localStorage.setItem('darkMode', 'true');
+        } else {
+            btn.textContent = '🌙 Dark Mode';
+            localStorage.setItem('darkMode', 'false');
+        }
+    }
+    // On page load, set dark mode if preferred
+    (function() {
+        const darkPref = localStorage.getItem('darkMode');
+        const body = document.body;
+        const btn = document.getElementById('darkModeBtn');
+        if (darkPref === 'true') {
+            body.classList.add('dark-mode');
+            btn.textContent = '☀️ Light Mode';
+        } else {
+            body.classList.remove('dark-mode');
+            btn.textContent = '🌙 Dark Mode';
+        }
+    })();
+
+    // Build icon picker HTML for dynamic rows
+    const ICONS = [
+      {% for ic in icons %}{ name: "{{ ic.name }}", url: "{{ url_for('static', filename=ic.filename) }}" }{% if not loop.last %},{% endif %}{% endfor %}
+    ];
+    function buildIconPickerHtml(sectionId, taskNumber) {
+        if (!ICONS || ICONS.length === 0) return '<em style="color:#888">No icons available</em>';
+        return ICONS.map(ic => `
+          <label class="icon-option">
+            <input type="radio" name="flair_icon_${sectionId}_${taskNumber}" value="${ic.name}">
+            <img src="${ic.url}" alt="${ic.name}" onerror="this.style.display='none'">
+            <span style="text-transform:capitalize;">${ic.name}</span>
+          </label>
+        `).join('');
+    }
+
+    // Preview uploaded image
+    document.addEventListener('change', function(e){
+        if (e.target && e.target.classList.contains('flair-image')) {
+            const input = e.target;
+            const row = input.closest('.flair-row');
+            const preview = row ? row.querySelector('.flair-preview') : null;
+            if (input.files && input.files[0] && preview) {
+                const reader = new FileReader();
+                reader.onload = function(ev){
+                    preview.src = ev.target.result;
+                    preview.style.display = 'inline-block';
+                };
+                reader.readAsDataURL(input.files[0]);
+            } else if (preview) {
+                preview.src = '';
+                preview.style.display = 'none';
+            }
+        }
+    });
+
+    // Optional job status polling
+    (function() {
+        const container = document.getElementById('jobStatus');
+        if (!container) return;
+        const jobId = container.getAttribute('data-job-id');
+        const text = document.getElementById('jobStatusText');
+        const dismiss = document.getElementById('jobDismissBtn');
+        let timer = null;
+        function update() {
+            fetch(`/jobs/${jobId}`).then(r => {
+                if (!r.ok) { throw new Error('not found'); }
+                return r.json();
+            }).then(j => {
+                text.textContent = `— ${j.status}`;
+                if (j.status === 'success' || j.status === 'error') {
                     clearInterval(timer);
                     setTimeout(() => { container.style.display = 'none'; }, 4000);
-                });
-            }
-            timer = setInterval(update, 2000);
-            update();
-            dismiss.addEventListener('click', () => { if (timer) clearInterval(timer); container.style.display='none'; });
-        })();
-    </script>
+                }
+            }).catch(() => {
+                text.textContent = '— unavailable';
+                clearInterval(timer);
+                setTimeout(() => { container.style.display = 'none'; }, 4000);
+            });
+        }
+        timer = setInterval(update, 2000);
+        update();
+        dismiss.addEventListener('click', () => { if (timer) clearInterval(timer); container.style.display='none'; });
+    })();
+</script>
 {% endblock %}

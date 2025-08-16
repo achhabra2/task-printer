@@ -118,6 +118,7 @@ taskprinter/
 │   ├── IMPLEMENTED.md  # Implemented changes and usage
 │   └── IMPROVEMENTS.md # Proposed improvements / roadmap
 │   └── DEPLOYMENT.md   # Systemd, uv/venv, Docker
+│   └── PERSISTENCE.md  # Phase 3: SQLite templates design
 ├── Dockerfile          # Container build (optional)
 ├── README.md          # This file
 └── printout_*.txt     # Generated task files
