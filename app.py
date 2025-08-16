@@ -16,9 +16,10 @@ import queue
 from pathlib import Path
 import logging
 import uuid
-from time import time
+from time import time, sleep
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import generate_csrf
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 # Secret key from env, with safe dev fallback
@@ -31,6 +32,8 @@ MAX_TASKS_PER_SECTION = int(os.environ.get('TASKPRINTER_MAX_TASKS_PER_SECTION', 
 MAX_TASK_LEN = int(os.environ.get('TASKPRINTER_MAX_TASK_LEN', 200))
 MAX_SUBTITLE_LEN = int(os.environ.get('TASKPRINTER_MAX_SUBTITLE_LEN', 100))
 MAX_TOTAL_CHARS = int(os.environ.get('TASKPRINTER_MAX_TOTAL_CHARS', 5000))
+MAX_QR_LEN = int(os.environ.get('TASKPRINTER_MAX_QR_LEN', 512))
+MAX_UPLOAD_SIZE = int(os.environ.get('TASKPRINTER_MAX_UPLOAD_SIZE', 5 * 1024 * 1024))
 
 csrf = CSRFProtect(app)
 
@@ -43,6 +46,43 @@ def _default_config_path():
     return os.path.join(home, '.config', 'taskprinter', 'config.json')
 
 CONFIG_PATH = os.environ.get('TASKPRINTER_CONFIG_PATH', _default_config_path())
+
+def _default_media_path():
+    xdg = os.environ.get('XDG_DATA_HOME')
+    if xdg:
+        return os.path.join(xdg, 'taskprinter', 'media')
+    home = str(Path.home())
+    return os.path.join(home, '.local', 'share', 'taskprinter', 'media')
+
+MEDIA_PATH = os.environ.get('TASKPRINTER_MEDIA_PATH', _default_media_path())
+os.makedirs(MEDIA_PATH, exist_ok=True)
+
+ICON_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.bmp']
+
+def get_available_icons():
+    icons_dir = os.path.join(os.path.dirname(__file__), 'static', 'icons')
+    mapping = {}
+    try:
+        for fname in os.listdir(icons_dir):
+            base, ext = os.path.splitext(fname)
+            if ext.lower() in ICON_EXTS:
+                # prefer png over others if multiple
+                if base not in mapping or (os.path.splitext(mapping[base])[1].lower() != '.png' and ext.lower() == '.png'):
+                    mapping[base] = fname
+    except Exception:
+        pass
+    icons = []
+    for base, fname in sorted(mapping.items()):
+        icons.append({'name': base, 'filename': f"icons/{fname}"})
+    return icons
+
+def _resolve_icon_path(key: str):
+    icons_dir = os.path.join(os.path.dirname(__file__), 'static', 'icons')
+    for ext in ICON_EXTS:
+        candidate = os.path.join(icons_dir, key + ext)
+        if os.path.exists(candidate):
+            return candidate
+    return None
 
 def load_config():
     if os.path.exists(CONFIG_PATH):
@@ -304,9 +344,13 @@ def restart():
             subprocess.run(['bash', './install_service.sh'], capture_output=True, text=True, timeout=30)
         except Exception as e:
             pass
-    # Restart the app (systemd will restart it)
-    import sys
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+    # Schedule process exit so caller gets a response first.
+    def _exit_soon():
+        try:
+            sleep(0.3)
+        finally:
+            os._exit(0)
+    threading.Thread(target=_exit_soon, daemon=True).start()
     return '', 204
 
 def print_tasks(subtitle_tasks):
@@ -329,8 +373,15 @@ def print_tasks(subtitle_tasks):
         else:
             raise Exception('Unsupported printer type')
         app.logger.info("Printer connection established")
-        for i, (subtitle, task) in enumerate(subtitle_tasks, 1):
-            if not task.strip():
+        for i, item in enumerate(subtitle_tasks, 1):
+            if isinstance(item, (list, tuple)):
+                subtitle, task = item[0], item[1]
+                flair = None
+            else:
+                subtitle = (item or {}).get('subtitle', '')
+                task = (item or {}).get('task', '')
+                flair = (item or {}).get('flair')
+            if not task or not task.strip():
                 continue
             app.logger.info(f"Printing receipt for task {i}: {task.strip()} (Subtitle: {subtitle})")
             p.text("\n\n")
@@ -340,6 +391,28 @@ def print_tasks(subtitle_tasks):
             if subtitle:
                 p.set(align='left', bold=False, width=1, height=1)
                 p.text(f"{subtitle}\n")
+            # Flair: icon/image or QR
+            if flair and isinstance(flair, dict):
+                ftype = flair.get('type')
+                fval = flair.get('value', '')
+                try:
+                    if ftype == 'icon' and fval:
+                        icon_path = _resolve_icon_path(fval)
+                        if icon_path and os.path.exists(icon_path):
+                            p.image(icon_path)
+                        else:
+                            # generate simple placeholder
+                            img = _generate_icon_placeholder(fval, int(config.get('receipt_width', 512)))
+                            p.image(img)
+                    elif ftype == 'image' and fval:
+                        if os.path.isfile(fval):
+                            p.image(fval)
+                        else:
+                            app.logger.warning(f"Image not found for task {i}: {fval}")
+                    elif ftype == 'qr' and fval:
+                        p.qr(fval)
+                except Exception as e:
+                    app.logger.warning(f"Flair render failed for task {i}: {e}")
             img = render_large_text_image(task.strip(), config)
             p.image(img)
             p.set(align='left', bold=False, width=1, height=1)
@@ -358,6 +431,27 @@ def print_tasks(subtitle_tasks):
     except Exception as e:
         app.logger.exception(f"Printer error: {str(e)}")
         return False
+
+def _generate_icon_placeholder(key: str, width: int):
+    try:
+        from PIL import Image as _Image, ImageDraw as _ImageDraw, ImageFont as _ImageFont
+        size = min(192, max(96, width // 4))
+        img = _Image.new("L", (size, size), 255)
+        d = _ImageDraw.Draw(img)
+        # draw a simple circle and letter
+        r = size // 2 - 6
+        center = (size // 2, size // 2)
+        d.ellipse([center[0]-r, center[1]-r, center[0]+r, center[1]+r], outline=0, width=4)
+        letter = (key[:1] or '?').upper()
+        try:
+            font = _resolve_font_path({'font_path': None}, size // 2)
+        except Exception:
+            font = _ImageFont.load_default()
+        tw, th = d.textsize(letter, font=font)
+        d.text((center[0]-tw//2, center[1]-th//2), letter, fill=0, font=font)
+        return img
+    except Exception:
+        return None
 
 def print_tasks_with_config(subtitle_tasks, config):
     # Temporarily run print using provided config
@@ -511,7 +605,48 @@ def index():
                 if _has_control_chars(task):
                     flash('Tasks cannot contain control characters.', 'error')
                     return redirect(url_for('index'))
-                subtitle_tasks.append((subtitle, task))
+                # Flair parsing
+                flair = None
+                ftype = form.get(f'flair_type_{section}_{task_num}', 'none')
+                if ftype == 'icon':
+                    icon_key = form.get(f'flair_icon_{section}_{task_num}', '').strip()
+                    if icon_key:
+                        flair = {'type': 'icon', 'value': icon_key}
+                elif ftype == 'qr':
+                    qr_val = form.get(f'flair_qr_{section}_{task_num}', '').strip()
+                    if qr_val:
+                        if len(qr_val) > MAX_QR_LEN:
+                            flash(f'QR data too long in section {section} task {task_num} (max {MAX_QR_LEN}).', 'error')
+                            return redirect(url_for('index'))
+                        if _has_control_chars(qr_val):
+                            flash('QR data cannot contain control characters.', 'error')
+                            return redirect(url_for('index'))
+                        flair = {'type': 'qr', 'value': qr_val}
+                elif ftype == 'image':
+                    file_key = f'flair_image_{section}_{task_num}'
+                    if file_key in request.files:
+                        file = request.files.get(file_key)
+                        if file and file.filename:
+                            fname = secure_filename(file.filename)
+                            ext = os.path.splitext(fname)[1].lower()
+                            if ext not in {'.png', '.jpg', '.jpeg', '.gif', '.bmp'}:
+                                flash('Unsupported image type. Use PNG, JPG, GIF, or BMP.', 'error')
+                                return redirect(url_for('index'))
+                            # size check
+                            try:
+                                file.stream.seek(0, os.SEEK_END)
+                                size = file.stream.tell()
+                                file.stream.seek(0)
+                            except Exception:
+                                size = 0
+                            if size and size > MAX_UPLOAD_SIZE:
+                                flash('Image too large.', 'error')
+                                return redirect(url_for('index'))
+                            unique = uuid.uuid4().hex + ext
+                            dest = os.path.join(MEDIA_PATH, unique)
+                            file.save(dest)
+                            flair = {'type': 'image', 'value': dest}
+                subtitle_tasks.append({'subtitle': subtitle, 'task': task, 'flair': flair})
                 task_num += 1
                 if task_num > MAX_TASKS_PER_SECTION:
                     flash(f'Too many tasks in section {section} (max {MAX_TASKS_PER_SECTION}).', 'error')
@@ -537,7 +672,7 @@ def index():
             flash(f'Error queuing print job: {str(e)}', 'error')
         return redirect(url_for('index'))
     job_id = request.args.get('job')
-    return render_template('index.html', job_id=job_id)
+    return render_template('index.html', job_id=job_id, icons=get_available_icons())
 
 @app.route('/test_print', methods=['POST'])
 def test_print():

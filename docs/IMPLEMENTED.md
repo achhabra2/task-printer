@@ -44,6 +44,9 @@ We focused on HTML correctness and UX, non-blocking print execution, safer confi
 - Added `EnvironmentFile=/etc/default/taskprinter` to the unit, allowing secrets and config overrides without editing the unit.
 - Creates `/etc/default/taskprinter` (if missing) with commented placeholders for `TASKPRINTER_SECRET_KEY` and `TASKPRINTER_CONFIG_PATH`.
 
+Restart behavior:
+- The “Save & Start” flow triggers a restart endpoint which now exits the process after responding. Under systemd, the service restarts automatically. When running manually (./start.sh), the app will stop and should be started again.
+
 7) Jobs: IDs, status, and UI
 - Files: `app.py`, `templates/index.html`, `templates/jobs.html`
 - Added job IDs for all queued work with a JSON status endpoint `GET /jobs/<id>`.
@@ -125,3 +128,8 @@ Tip: When using JSON logs, prefer `journalctl -o json-pretty -u taskprinter.serv
 
 - Existing installs: If you previously relied on `config.json` in the repo root, the app will now look in XDG paths by default. You can set `TASKPRINTER_CONFIG_PATH` to keep using the old location if desired.
 - Fonts: The app uses DejaVu Sans from the system. Ensure it is present on the target device.
+12) Task flair (Phase 1)
+- Files: `app.py`, `templates/index.html`
+- Added optional per-task flair: `Icon` or `QR` (besides `None`).
+- Icons are looked up under `static/icons/<key>.png` (e.g., `working.png`, `cleaning.png`, `family.png`, `fitness.png`, `study.png`, `errands.png`). If missing, the app prints a simple placeholder.
+- QR payload length capped via `TASKPRINTER_MAX_QR_LEN` (default 512).

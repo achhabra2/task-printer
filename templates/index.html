@@ -113,6 +113,14 @@
         body.dark-mode .remove-task:hover {
             background-color: #7a1d27;
         }
+        .flair-row { display:flex; align-items:center; gap:8px; margin: -6px 0 12px 80px; font-size: 12px; }
+        .flair-row label { margin: 0; font-weight: normal; color:#666; }
+        .flair-row select, .flair-row input { padding:4px 6px; font-size: 12px; border:1px solid #ccc; border-radius:4px; }
+        body.dark-mode .flair-row label { color:#bdbdbd; }
+        body.dark-mode .flair-row select, body.dark-mode .flair-row input { background:#23272a; color:#e0e0e0; border-color:#444; }
+        .icon-option { display:inline-flex; align-items:center; gap:6px; margin-right:8px; cursor:pointer; }
+        .icon-option img { width:20px; height:20px; object-fit:contain; border-radius:3px; background:#fff; }
+        .flair-preview { width:40px; height:40px; object-fit:contain; border:1px dashed #ccc; border-radius:4px; display:none; }
         .add-task-btn {
             background-color: #28a745;
             color: white;
@@ -199,7 +207,8 @@
         body.dark-mode .task-label {
             color: #e0e0e0;
         }
-        button[type="submit"] {
+        /* Primary submit button in the task form */
+        #taskForm button[type="submit"] {
             background-color: #007bff;
             color: white;
             padding: 16px 0;
@@ -211,14 +220,14 @@
             margin-top: 10px;
             transition: background 0.2s;
         }
-        button[type="submit"]:hover {
+        #taskForm button[type="submit"]:hover {
             background-color: #0056b3;
         }
-        body.dark-mode button[type="submit"] {
+        body.dark-mode #taskForm button[type="submit"] {
             background-color: #0056b3;
             color: #fff;
         }
-        body.dark-mode button[type="submit"]:hover {
+        body.dark-mode #taskForm button[type="submit"]:hover {
             background-color: #003a7a;
         }
         /* Top bar */
@@ -289,19 +298,40 @@
         </div>
         
         <!-- Task Input Form -->
-        <form method="POST" id="taskForm">
+        <form method="POST" id="taskForm" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div id="subtitleSections">
                 <div class="subtitle-section" data-section="1" style="margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
                     <label for="subtitle_1">Subtitle (e.g., Cleaning kitchen):</label>
                     <input type="text" id="subtitle_1" name="subtitle_1" placeholder="Enter subtitle..." style="width:100%;padding:10px;border:2px solid #ddd;border-radius:4px;font-size:14px;box-sizing:border-box; margin-bottom: 10px;">
-                    <div class="taskContainer" id="taskContainer_1">
-                        <div class="task-input">
-                            <span class="task-label">Task 1:</span>
-                            <input type="text" name="task_1_1" placeholder="Enter task 1..." required>
-                            <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
-                        </div>
+                <div class="taskContainer" id="taskContainer_1">
+                    <div class="task-input">
+                        <span class="task-label">Task 1:</span>
+                        <input type="text" name="task_1_1" placeholder="Enter task 1..." required>
+                        <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
                     </div>
+                    <div class="flair-row" data-for="1_1">
+                        <label>Flair:</label>
+                        <select name="flair_type_1_1" onchange="onFlairTypeChange(this)">
+                            <option value="none" selected>None</option>
+                            <option value="icon">Icon</option>
+                            <option value="image">Image</option>
+                            <option value="qr">QR</option>
+                        </select>
+                        <div class="flair-icon-picker" style="display:none;">
+                            {% for ic in icons %}
+                              <label class="icon-option">
+                                <input type="radio" name="flair_icon_1_1" value="{{ ic.name }}">
+                                <img src="{{ url_for('static', filename=ic.filename) }}" alt="{{ ic.name }}" onerror="this.style.display='none'">
+                                <span style="text-transform:capitalize;">{{ ic.name }}</span>
+                              </label>
+                            {% endfor %}
+                        </div>
+                        <input type="file" name="flair_image_1_1" class="flair-image" accept="image/*" style="display:none;">
+                        <img class="flair-preview" alt="preview">
+                        <input type="text" name="flair_qr_1_1" class="flair-qr" placeholder="QR data" style="display:none;">
+                    </div>
+                </div>
                     <button type="button" class="add-task-btn" onclick="addTask(this)">➕ Add Task</button>
                 </div>
             </div>
@@ -344,6 +374,23 @@
                         <input type="text" name="task_${sectionCount}_1" placeholder="Enter task 1..." required>
                         <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
                     </div>
+                    <div class="flair-row" data-for="${sectionCount}_1">
+                        <label>Flair:</label>
+                        <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)">
+                            <option value="none" selected>None</option>
+                            <option value="icon">Icon</option>
+                            <option value="qr">QR</option>
+                        </select>
+                        <select name="flair_icon_${sectionCount}_1" class="flair-icon" style="display:none;">
+                            <option value="working">Working</option>
+                            <option value="cleaning">Cleaning</option>
+                            <option value="family">Family</option>
+                            <option value="fitness">Fitness</option>
+                            <option value="study">Study</option>
+                            <option value="errands">Errands</option>
+                        </select>
+                        <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
+                    </div>
                 </div>
                 <button type="button" class="add-task-btn" onclick="addTask(this)">➕ Add Task</button>
             `;
@@ -367,6 +414,23 @@
                 <button type="button" class="remove-task" onclick="removeTask(this)">✕</button>
             `;
             taskContainer.appendChild(newTaskDiv);
+            const flairDiv = document.createElement('div');
+            flairDiv.className = 'flair-row';
+            flairDiv.setAttribute('data-for', `${sectionId}_${taskNumber}`);
+            flairDiv.innerHTML = `
+                <label>Flair:</label>
+                <select name="flair_type_${sectionId}_${taskNumber}" onchange="onFlairTypeChange(this)">
+                    <option value="none" selected>None</option>
+                    <option value="icon">Icon</option>
+                    <option value="image">Image</option>
+                    <option value="qr">QR</option>
+                </select>
+                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(${sectionId}, ${taskNumber})}</div>
+                <input type="file" name="flair_image_${sectionId}_${taskNumber}" class="flair-image" accept="image/*" style="display:none;">
+                <img class="flair-preview" alt="preview">
+                <input type="text" name="flair_qr_${sectionId}_${taskNumber}" class="flair-qr" placeholder="QR data" style="display:none;">
+            `;
+            taskContainer.appendChild(flairDiv);
             updateRemoveButtons(taskContainer);
         }
 
@@ -400,6 +464,19 @@
                                 <input type="text" name="task_${sectionCount}_1" placeholder="Enter task 1..." required>
                                 <button type="button" class="remove-task" onclick="removeTask(this)" style="display: none;">✕</button>
                             </div>
+                            <div class="flair-row" data-for="${sectionCount}_1">
+                                <label>Flair:</label>
+                                <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)">
+                                    <option value="none" selected>None</option>
+                                    <option value="icon">Icon</option>
+                                    <option value="image">Image</option>
+                                    <option value="qr">QR</option>
+                                </select>
+                                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(${sectionCount}, 1)}</div>
+                                <input type="file" name="flair_image_${sectionCount}_1" class="flair-image" accept="image/*" style="display:none;">
+                                <img class="flair-preview" alt="preview">
+                                <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
+                            </div>
                         </div>
                         <button type="button" class="add-task-btn" onclick="addTask(this)">➕ Add Task</button>
                     `;
@@ -407,15 +484,57 @@
                 }
                 return;
             }
-            taskInputs.forEach((input, index) => {
-                const label = input.querySelector('.task-label');
-                const inputField = input.querySelector('input');
+            taskInputs.forEach((row, index) => {
+                const label = row.querySelector('.task-label');
+                const textInput = row.querySelector('input[name^="task_"]');
                 const taskNumber = index + 1;
                 label.textContent = `Task ${taskNumber}:`;
-                inputField.name = `${inputField.name.split('_')[0]}_${inputField.name.split('_')[1]}_${taskNumber}`;
-                inputField.placeholder = `Enter task ${taskNumber}...`;
+                // rename task input
+                textInput.name = textInput.name.replace(/^(.*_)(\d+)$/, `$1${taskNumber}`);
+                textInput.placeholder = `Enter task ${taskNumber}...`;
+                // rename associated flair row names
+                const sectionId = sectionDiv.getAttribute('data-section');
+                const flairRow = taskContainer.querySelector(`.flair-row[data-for="${sectionId}_${taskNumber+1}"]`) || taskContainer.querySelector(`.flair-row[data-for]`);
+            });
+            // Adjust all flair rows keys
+            const allFlairs = taskContainer.querySelectorAll('.flair-row');
+            allFlairs.forEach((fr, idx) => {
+                const newNum = idx + 1;
+                const sectionId = sectionDiv.getAttribute('data-section');
+                fr.setAttribute('data-for', `${sectionId}_${newNum}`);
+                fr.querySelectorAll('select, input').forEach(el => {
+                    el.name = el.name.replace(/^(flair_(?:type|icon|qr)_\d+_)(\d+)$/, `$1${newNum}`);
+                });
             });
             updateRemoveButtons(taskContainer);
+        }
+
+        function onFlairTypeChange(sel) {
+            const row = sel.closest('.flair-row');
+            const iconPicker = row.querySelector('.flair-icon-picker');
+            const qrInput = row.querySelector('.flair-qr');
+            const imgInput = row.querySelector('.flair-image');
+            const preview = row.querySelector('.flair-preview');
+            if (sel.value === 'icon') {
+                iconPicker.style.display = '';
+                qrInput.style.display = 'none';
+                imgInput.style.display = 'none';
+                if (preview) { preview.style.display = 'none'; preview.src=''; }
+            } else if (sel.value === 'image') {
+                iconPicker.style.display = 'none';
+                qrInput.style.display = 'none';
+                imgInput.style.display = '';
+            } else if (sel.value === 'qr') {
+                iconPicker.style.display = 'none';
+                qrInput.style.display = '';
+                imgInput.style.display = 'none';
+                if (preview) { preview.style.display = 'none'; preview.src=''; }
+            } else {
+                iconPicker.style.display = 'none';
+                qrInput.style.display = 'none';
+                imgInput.style.display = 'none';
+                if (preview) { preview.style.display = 'none'; preview.src=''; }
+            }
         }
 
         function updateRemoveButtons(taskContainer) {
@@ -460,6 +579,41 @@
                 btn.textContent = '🌙 Dark Mode';
             }
         })();
+
+        // Build icon picker HTML for dynamic rows
+        const ICONS = [
+          {% for ic in icons %}{ name: "{{ ic.name }}", url: "{{ url_for('static', filename=ic.filename) }}" }{% if not loop.last %},{% endif %}{% endfor %}
+        ];
+        function buildIconPickerHtml(sectionId, taskNumber) {
+            if (!ICONS || ICONS.length === 0) return '<em style="color:#888">No icons available</em>';
+            return ICONS.map(ic => `
+              <label class="icon-option">
+                <input type="radio" name="flair_icon_${sectionId}_${taskNumber}" value="${ic.name}">
+                <img src="${ic.url}" alt="${ic.name}" onerror="this.style.display='none'">
+                <span style="text-transform:capitalize;">${ic.name}</span>
+              </label>
+            `).join('');
+        }
+
+        // Preview uploaded image
+        document.addEventListener('change', function(e){
+            if (e.target && e.target.classList.contains('flair-image')) {
+                const input = e.target;
+                const row = input.closest('.flair-row');
+                const preview = row ? row.querySelector('.flair-preview') : null;
+                if (input.files && input.files[0] && preview) {
+                    const reader = new FileReader();
+                    reader.onload = function(ev){
+                        preview.src = ev.target.result;
+                        preview.style.display = 'inline-block';
+                    };
+                    reader.readAsDataURL(input.files[0]);
+                } else if (preview) {
+                    preview.src = '';
+                    preview.style.display = 'none';
+                }
+            }
+        });
 
         // Optional job status polling
         (function() {
