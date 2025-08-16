@@ -24,16 +24,18 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label style="text-align:left;">Printer Type:</label>
     <select name="printer_type" id="printer_type" onchange="onTypeChange()">
-      <option value="usb">USB</option>
-      <option value="network">Network</option>
-      <option value="serial">Serial</option>
+      {% set pt = (config.printer_type if config and config.printer_type else 'usb') %}
+      <option value="usb" {% if pt=='usb' %}selected{% endif %}>USB</option>
+      <option value="network" {% if pt=='network' %}selected{% endif %}>Network</option>
+      <option value="serial" {% if pt=='serial' %}selected{% endif %}>Serial</option>
     </select>
     <label class="usb-printer-label">Select your USB printer:</label>
     <div id="usb_fields" class="usb-list">
       {% if usb_devices and usb_devices|length > 0 %}
         {% for dev in usb_devices %}
+          {% set is_selected = (config and pt=='usb' and ('0x' ~ dev.vendor)|lower == (config.usb_vendor_id|default('')|lower) and ('0x' ~ dev.product)|lower == (config.usb_product_id|default('')|lower)) %}
           <div style="margin-bottom:16px;display:flex;align-items:center;text-align:left;">
-            <input type="radio" name="usb_device" value="0x{{ dev.vendor }}:0x{{ dev.product }}" {% if loop.index0 == 0 %}checked{% endif %}>
+            <input type="radio" name="usb_device" value="0x{{ dev.vendor }}:0x{{ dev.product }}" {% if is_selected %}checked{% endif %}>
             <label style="font-weight:normal;{% if not dev.is_printer %}color:#aaa;{% endif %}margin:0;">
               {{ dev.desc }}
               {% if not dev.is_printer %}
@@ -43,29 +45,31 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
             </label>
           </div>
         {% endfor %}
+        {% set matched = usb_devices|selectattr('vendor','equalto', (config.usb_vendor_id|default('')|replace('0x','')) if config else '') \
+                           |selectattr('product','equalto', (config.usb_product_id|default('')|replace('0x','')) if config else '') | list %}
         <div style="margin-top:7px;display:flex;align-items:center;text-align:left;">
-          <input type="radio" name="usb_device" value="manual">
+          <input type="radio" name="usb_device" value="manual" {% if config and pt=='usb' and (matched|length==0) %}checked{% endif %}>
           <label style="font-weight:normal;margin:0;">Other (enter manually below)</label>
         </div>
       {% else %}
         <div class="help" style="margin:18px 0 10px 0;">No USB printers detected. Please enter Vendor ID and Product ID manually below.</div>
       {% endif %}
-      <div id="manual_usb_fields" style="display:{{ 'block' if not usb_devices else 'none' }};">
+      <div id="manual_usb_fields" style="display:{{ 'block' if (not usb_devices or (config and pt=='usb' and (matched|length==0))) else 'none' }};">
         <label>USB Vendor ID:</label>
-        <input name="usb_vendor_id" value="0x04b8">
+        <input name="usb_vendor_id" value="{{ (config.usb_vendor_id if config else '0x04b8') }}">
         <div class="help">Find this by running <code>lsusb</code> on your Raspberry Pi. Example: <code>ID 04b8:0e28</code> → Vendor ID: <b>0x04b8</b></div>
         <label>USB Product ID:</label>
-        <input name="usb_product_id" value="0x0e28">
+        <input name="usb_product_id" value="{{ (config.usb_product_id if config else '0x0e28') }}">
         <div class="help">Find this by running <code>lsusb</code>. Example: <code>ID 04b8:0e28</code> → Product ID: <b>0x0e28</b></div>
       </div>
     </div>
     <div id="network_fields" style="display:none;">
-      <label>Network IP:</label> <input name="network_ip"><br>
-      <label>Network Port:</label> <input name="network_port" value="9100"><br>
+      <label>Network IP:</label> <input name="network_ip" value="{{ (config.network_ip if config else '') }}"><br>
+      <label>Network Port:</label> <input name="network_port" value="{{ (config.network_port if config else '9100') }}"><br>
     </div>
     <div id="serial_fields" style="display:none;">
-      <label>Serial Port:</label> <input name="serial_port"><br>
-      <label>Serial Baudrate:</label> <input name="serial_baudrate" value="19200"><br>
+      <label>Serial Port:</label> <input name="serial_port" value="{{ (config.serial_port if config else '') }}"><br>
+      <label>Serial Baudrate:</label> <input name="serial_baudrate" value="{{ (config.serial_baudrate if config else '19200') }}"><br>
     </div>
     <hr style="width:100%;margin:28px 0 18px 0;border:0;border-top:1.5px solid #eee;">
     <div class="auto-startup-row"><input type="checkbox" name="auto_startup" id="auto_startup"><label for="auto_startup" style="font-weight:bold;">Enable auto startup on boot (systemd)</label></div>
@@ -137,4 +141,4 @@ window.onload = function() {
   }
 };
 </script>
-{% endblock %} 
+{% endblock %}

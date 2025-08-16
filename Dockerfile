@@ -17,7 +17,7 @@ WORKDIR /app
 
 # System deps for pillow and usb (adjust as needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libjpeg62-turbo-dev zlib1g-dev libusb-1.0-0 \
+    build-essential libjpeg62-turbo-dev zlib1g-dev libusb-1.0-0 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy project files
@@ -30,4 +30,3 @@ EXPOSE 5000
 
 # Default: run the app
 CMD ["python", "app.py"]
-

@@ -83,6 +83,7 @@ We focused on HTML correctness and UX, non-blocking print execution, safer confi
 - `TASKPRINTER_CONFIG_PATH`: Optional absolute path to `config.json`.
 - If unset, `config.json` defaults to XDG locations as described above.
 - `TASKPRINTER_JSON_LOGS`: If set to `true/1/yes`, emits JSON logs instead of plain text.
+- `TASKPRINTER_FONT_PATH`: Optional path to a TTF font to use when rendering text.
 
 ## Systemd Service
 

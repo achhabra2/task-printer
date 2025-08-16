@@ -5,7 +5,7 @@ Runs on Raspberry Pi with thermal printer support
 """
 
 from flask import Flask, render_template, request, redirect, url_for, flash
-from datetime import datetime
+from datetime import datetime, timezone
 from escpos.printer import Usb
 import os
 from PIL import Image, ImageDraw, ImageFont
@@ -158,11 +158,11 @@ def _update_job(job_id, **updates):
     if not job:
         return
     job.update(updates)
-    job['updated_at'] = datetime.utcnow().isoformat()
+    job['updated_at'] = datetime.now(timezone.utc).isoformat()
 
 def _create_job(kind, meta=None):
     job_id = uuid.uuid4().hex
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     job = {
         'id': job_id,
         'type': kind,
@@ -276,7 +276,8 @@ def setup():
         return render_template('loading.html', auto_startup=auto_startup)
     # Render setup page (for GET requests)
     show_close = os.path.exists(CONFIG_PATH)
-    return render_template('setup.html', usb_devices=usb_devices, show_close=show_close)
+    cfg = load_config()
+    return render_template('setup.html', usb_devices=usb_devices, show_close=show_close, config=cfg)
 
 @app.route('/restart', methods=['POST'])
 def restart():
@@ -382,6 +383,38 @@ def _do_test_print(config_override=None):
     test_pairs = [("TEST", "Task Printer Test Page"), (datetime.now().strftime('%Y-%m-%d %H:%M'), "Hello from Task Printer!")]
     return print_tasks_with_config(test_pairs, config)
 
+def _resolve_font_path(config, font_size):
+    # Preferred order: config font_path -> env -> common system paths
+    candidates = []
+    cfg_path = None
+    if config:
+        cfg_path = config.get('font_path')
+    env_path = os.environ.get('TASKPRINTER_FONT_PATH')
+    if cfg_path:
+        candidates.append(cfg_path)
+    if env_path and env_path not in candidates:
+        candidates.append(env_path)
+    common = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf",
+        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+    ]
+    for pth in common:
+        if pth not in candidates:
+            candidates.append(pth)
+    from PIL import ImageFont as _IF
+    for pth in candidates:
+        try:
+            return _IF.truetype(pth, font_size)
+        except Exception:
+            continue
+    app.logger.warning("No TTF font found; falling back to default PIL font.")
+    return ImageFont.load_default()
+
 def render_large_text_image(text, config=None):
     if config is None:
         config = load_config()
@@ -389,8 +422,7 @@ def render_large_text_image(text, config=None):
         raise RuntimeError("No config found. Please complete setup at /setup.")
     width = int(config.get('receipt_width', 512))
     font_size = int(config.get('task_font_size', 72))
-    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    font = ImageFont.truetype(font_path, font_size)
+    font = _resolve_font_path(config, font_size)
     def wrap_text(text, font, max_width):
         words = text.split()
         lines = []

@@ -114,3 +114,6 @@ docker run --rm -p 5000:5000 \
 
 Logs: set `TASKPRINTER_JSON_LOGS=true` for JSON logs (better with log drivers).
 
+Fonts: The app requires a TTF font for rendering task text. The Docker image installs DejaVu Sans (`fonts-dejavu-core`). If running outside Docker, ensure a TTF font exists and either:
+- Set `TASKPRINTER_FONT_PATH=/path/to/YourFont.ttf`, or
+- Rely on common system paths (DejaVuSans, FreeSans, LiberationSans, NotoSans).
