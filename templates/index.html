@@ -221,58 +221,23 @@
         body.dark-mode button[type="submit"]:hover {
             background-color: #003a7a;
         }
-        /* Dark mode toggle button */
-        .dark-mode-toggle {
-            position: absolute;
-            top: 24px;
-            right: 32px;
-            background: #23272a;
-            color: #fff;
-            border: none;
-            border-radius: 20px;
-            padding: 8px 18px;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 10;
-            transition: background 0.2s, color 0.2s;
-        }
-        .dark-mode-toggle:hover {
-            background: #444b52;
-        }
-        body:not(.dark-mode) .dark-mode-toggle {
-            background: #e7e7e7;
-            color: #222;
-        }
-        body:not(.dark-mode) .dark-mode-toggle:hover {
-            background: #d0d0d0;
-        }
-        /* Settings button */
-        .settings-button {
-            position: absolute;
-            top: 24px;
-            right: 200px;
-            background: #007bff;
-            color: #fff;
-            border: none;
-            border-radius: 20px;
-            padding: 8px 18px;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 10;
-            transition: background 0.2s;
-            text-decoration: none;
-        }
-        .settings-button:hover {
-            background: #0056b3;
-            color: #fff;
-            text-decoration: none;
-        }
-        body.dark-mode .settings-button {
-            background: #0056b3;
-        }
-        body.dark-mode .settings-button:hover {
-            background: #003a7a;
-        }
+        /* Top bar */
+        .topbar { display:flex; align-items:center; justify-content: space-between; gap: 10px; margin: 16px 0; flex-wrap: wrap; }
+        .top-actions { display:flex; align-items:center; gap: 10px; flex-wrap: wrap; }
+        .top-btn { display:inline-flex; align-items:center; gap:6px; background: #007bff; color:#fff; border:none; border-radius: 20px; padding: 8px 14px; font-size: 14px; cursor:pointer; text-decoration:none; }
+        .top-btn:hover { background:#0056b3; color:#fff; text-decoration:none; }
+        .top-btn.info { background:#17a2b8; }
+        .top-btn.info:hover { background:#117a8b; }
+        body.dark-mode .top-btn { background:#0056b3; }
+        body.dark-mode .top-btn:hover { background:#003a7a; }
+        body.dark-mode .top-btn.info { background:#117a8b; }
+        body.dark-mode .top-btn.info:hover { background:#0b5964; }
+        .inline-form { display:inline; margin:0; padding:0; }
+        /* Dark mode toggle */
+        .dark-mode-toggle { background:#e7e7e7; color:#222; border:none; border-radius:20px; padding:8px 14px; cursor:pointer; }
+        .dark-mode-toggle:hover { background:#d0d0d0; }
+        body.dark-mode .dark-mode-toggle { background:#23272a; color:#fff; }
+        body.dark-mode .dark-mode-toggle:hover { background:#444b52; }
         /* Fix for dark mode input fields */
         body.dark-mode input[type="text"],
         body.dark-mode input[type="text"]:focus,
@@ -281,20 +246,20 @@
             color: #222 !important;
             border: 2px solid #444;
         }
-        .top-buttons-gap { height: 60px; }
-    .test-button { position: fixed; top: 14px; right: 130px; background: #17a2b8; color: #fff; border: none; border-radius: 20px; padding: 8px 18px; font-size: 16px; cursor: pointer; z-index: 10; transition: background 0.2s; text-decoration: none; }
-    .test-button:hover { background: #117a8b; color: #fff; text-decoration: none; }
-    body.dark-mode .test-button { background: #117a8b; }
-    body.dark-mode .test-button:hover { background: #0b5964; }
+        .top-buttons-gap { height: 0; }
 </style>
-<button class="dark-mode-toggle" onclick="toggleDarkMode()" id="darkModeBtn">🌙 Dark Mode</button>
-<a href="/setup" class="settings-button">⚙️ Settings</a>
-<a href="/jobs" class="settings-button" style="right: 246px; position: fixed; top: 14px;">🧾 Jobs</a>
-<form method="POST" action="/test_print" style="position: fixed; top: 10px; right: 130px;">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <button type="submit" class="test-button">🧪 Test Print</button>
-</form>
-<div class="top-buttons-gap"></div>
+<div class="topbar">
+  <button class="dark-mode-toggle" onclick="toggleDarkMode()" id="darkModeBtn">🌙 Dark Mode</button>
+  <div class="top-actions">
+    <a href="/jobs" class="top-btn">🧾 Jobs</a>
+    <a href="/setup" class="top-btn">⚙️ Settings</a>
+    <form method="POST" action="/test_print" class="inline-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="top-btn info">🧪 Test Print</button>
+    </form>
+  </div>
+  
+</div>
 <div class="container">
         <h1>📋 Task Printer</h1>
         {% if job_id %}

@@ -45,8 +45,9 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
             </label>
           </div>
         {% endfor %}
-        {% set matched = usb_devices|selectattr('vendor','equalto', (config.usb_vendor_id|default('')|replace('0x','')) if config else '') \
-                           |selectattr('product','equalto', (config.usb_product_id|default('')|replace('0x','')) if config else '') | list %}
+        {% set cfg_vendor_no0x = (config.usb_vendor_id|default('')|lower|replace('0x','')) if config else '' %}
+        {% set cfg_product_no0x = (config.usb_product_id|default('')|lower|replace('0x','')) if config else '' %}
+        {% set matched = usb_devices | selectattr('vendor','equalto', cfg_vendor_no0x) | selectattr('product','equalto', cfg_product_no0x) | list %}
         <div style="margin-top:7px;display:flex;align-items:center;text-align:left;">
           <input type="radio" name="usb_device" value="manual" {% if config and pt=='usb' and (matched|length==0) %}checked{% endif %}>
           <label style="font-weight:normal;margin:0;">Other (enter manually below)</label>
