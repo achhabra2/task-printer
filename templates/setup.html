@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
+:root { --setup-max-width: 980px; }
 .button-row { display: flex; gap: 16px; width: 100%; margin-top: 18px; }
 .button-row button { flex: 1; }
 .close-btn { background: #e0e0e0; color: #222; border: none; border-radius: 4px; padding: 12px 0; font-size: 17px; cursor: pointer; transition: background 0.2s; }
@@ -17,6 +18,18 @@ button:hover { background: #0056b3; }
 .auto-startup-row input[type=checkbox] { width: 13px !important; height: 13px !important; min-width: 13px !important; min-height: 13px !important; max-width: 13px !important; max-height: 13px !important; margin-right: 10px; margin-left: 0; flex: 0 0 auto; margin-top: 1px; }
 input[type=radio] { width: 13px !important; height: 13px !important; min-width: 13px !important; min-height: 13px !important; max-width: 13px !important; max-height: 13px !important; margin-right: 8px; vertical-align: middle; }
 .usb-printer-label { font-weight: bold; display: block; margin: 18px 0 18px 0 !important; text-align: left; }
+.preview-card { margin-top: 18px; background:#fafafa; border:1px solid #eee; border-radius:8px; padding:12px; overflow:hidden; }
+.preview-row { display:flex; gap:12px; align-items:center; overflow:auto; }
+.preview-canvas { background:#fff; border:1px dashed #ccc; border-radius:6px; max-width: 100%; height: auto; }
+.preview-controls { display:flex; flex-direction:column; gap:8px; width:100%; }
+.preview-controls .row { display:flex; gap:8px; flex-wrap:wrap; }
+.preview-controls input[type=text] { flex:1; min-width: 260px; }
+.preview-note { color:#777; font-size:12px; margin-top:6px; }
+.centered-card { max-width: var(--setup-max-width); width: 95%; }
+@media (max-width: 1024px) {
+  :root { --setup-max-width: 92vw; }
+  .preview-controls .row { flex-direction: column; }
+}
 </style>
 <div class="centered-card">
   <h1>⚙️ Task Printer Setup</h1>
@@ -86,6 +99,55 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
         <input type="checkbox" name="print_separators" {% if not config or config.print_separators %}checked{% endif %}> Print dashed separators around tasks
       </label>
     </div>
+
+    <!-- Flair layout tuning -->
+    <div id="flair_fields" style="margin-top: 16px;">
+      <h3 style="margin: 14px 0 8px 0; font-size: 16px; color: #555;">Flair Layout (optional)</h3>
+
+      <label>Separator</label> width (px):</label>
+      <input type="number" name="flair_separator_width" min="1" max="10" value="{{ (config.flair_separator_width if config and config.flair_separator_width is not none else 3) }}">
+      <div class="help">Thickness of the vertical line between text and icon (1–10).</div>
+
+      <label>Separator gap (px):</label>
+      <input type="number" name="flair_separator_gap" min="0" max="64" value="{{ (config.flair_separator_gap if config and config.flair_separator_gap is not none else 14) }}">
+      <div class="help">Horizontal padding on both sides of the separator line (0–64).</div>
+
+      <label>Flair column width (px):</label>
+      <input type="number" name="flair_col_width" min="96" max="512" value="{{ (config.flair_col_width if config and config.flair_col_width is not none else 256) }}">
+      <div class="help">Fixed width of the right column that holds the icon (96–512). Default 256.</div>
+
+      <label>Flair target height (px):</label>
+      <input type="number" name="flair_target_height" min="96" max="512" value="{{ (config.flair_target_height if config and config.flair_target_height is not none else 256) }}">
+      <div class="help">Target height for the icon area; icon is centered within this height (96–512). Default 256.</div>
+
+      <label>Max icon upscale (×):</label>
+      <input type="number" step="0.1" name="flair_icon_scale_max" min="1.0" max="4.0" value="{{ (config.flair_icon_scale_max if config and config.flair_icon_scale_max is not none else 2.0) }}">
+      <div class="help">Limit how much smaller icons may be upscaled (1.0–4.0). Default 2.0.</div>
+
+      <label>Minimum</label> text width (px):</label>
+      <input type="number" name="min_text_width" min="100" value="{{ (config.min_text_width if config and config.min_text_width is not none else (config.receipt_width * 0.45 if config and config.receipt_width else 230)) }}">
+      <div class="help">Guarantee at least this width for the text column. If the text would be narrower, the icon area shrinks slightly to compensate.</div>
+    </div>
+
+    <!-- Live Preview -->
+    <div class="preview-card">
+      <div class="preview-row">
+        <canvas id="flairPreview" class="preview-canvas" width="{{ (config.receipt_width if config and config.receipt_width else 512) }}" height="360" style="width:100%;"></canvas>
+      </div>
+      <div class="preview-controls">
+        <div class="row">
+          <input type="text" id="previewText" placeholder="Sample task text…" value="Sample Task Text can wrap to multiple lines for preview">
+          <select id="previewIcon">
+            <option value="">(no icon)</option>
+            {% for ic in icons %}
+              <option value="{{ url_for('static', filename=ic.filename) }}">{{ ic.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="preview-note">Preview is approximate (browser rendering); printer output may vary slightly.</div>
+      </div>
+    </div>
+
     <div id="network_fields" style="display:none;">
       <label>Network IP:</label> <input name="network_ip" value="{{ (config.network_ip if config else '') }}"><br>
       <label>Network Port:</label> <input name="network_port" value="{{ (config.network_port if config else '9100') }}"><br>
@@ -120,6 +182,103 @@ function onUsbRadioChange() {
   document.getElementById('manual_usb_fields').style.display = (checked && checked.value === 'manual') ? 'block' : 'none';
   console.log('USB radio changed. Checked:', checked ? checked.value : null);
 }
+function getInt(name, defVal) {
+  var el = document.querySelector('input[name="'+name+'"]');
+  if (!el) return defVal;
+  var v = parseInt(el.value, 10);
+  if (isNaN(v)) return defVal;
+  return v;
+}
+function getFloat(name, defVal) {
+  var el = document.querySelector('input[name="'+name+'"]');
+  if (!el) return defVal;
+  var v = parseFloat(el.value);
+  if (isNaN(v)) return defVal;
+  return v;
+}
+function drawPreview() {
+  var canvas = document.getElementById('flairPreview');
+  if (!canvas) return;
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height;
+  // clear
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, W, H);
+  // params
+  var leftMargin = 10, rightMargin = 10, topMargin = 20, extraSpacing = 10;
+  var sepWidth = getInt('flair_separator_width', 3);
+  var gap = getInt('flair_separator_gap', 14);
+  var flairColW = getInt('flair_col_width', 256);
+  var flairTargetH = getInt('flair_target_height', 256);
+  var minTextW = getInt('min_text_width', Math.max(180, Math.floor(W*0.45)));
+  var baseBlock = gap + sepWidth + gap + flairColW;
+  var textW = W - leftMargin - rightMargin - baseBlock;
+  if (textW < minTextW) {
+    var delta = minTextW - textW;
+    flairColW = Math.max(128, flairColW - delta);
+    baseBlock = gap + sepWidth + gap + flairColW;
+    textW = W - leftMargin - rightMargin - baseBlock;
+  }
+  // wrap text
+  var text = document.getElementById('previewText').value || '';
+  ctx.fillStyle = '#000';
+  ctx.font = 'bold 20px sans-serif';
+  function measure(str) { return ctx.measureText(str).width; }
+  var words = text.split(/\s+/);
+  var lines = [], cur = '';
+  for (var i=0;i<words.length;i++){
+    var test = cur ? (cur + ' ' + words[i]) : words[i];
+    if (measure(test) <= textW) cur = test;
+    else { if (cur) lines.push(cur); cur = words[i]; }
+  }
+  if (cur) lines.push(cur);
+  var lineH = 28;
+  var textBlockH = topMargin*2 + (lineH + extraSpacing) * Math.max(1, lines.length);
+  var outH = Math.max(textBlockH, topMargin*2 + flairTargetH);
+  // resize canvas height if needed
+  if (H !== outH) { canvas.height = outH; H = outH; ctx = canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#000'; ctx.font = 'bold 20px sans-serif'; }
+  // draw text
+  var y = topMargin + lineH;
+  for (var j=0;j<lines.length;j++){
+    ctx.fillText(lines[j], leftMargin, y);
+    y += lineH + extraSpacing;
+  }
+  // right anchors
+  var flairRight = W - rightMargin;
+  var flairLeft = flairRight - flairColW;
+  // separator
+  var sepX = flairLeft - gap - sepWidth;
+  ctx.fillRect(sepX, topMargin, sepWidth, H - topMargin*2);
+  // icon
+  var iconUrl = document.getElementById('previewIcon').value;
+  if (iconUrl) {
+    var img = new Image();
+    img.onload = function() {
+      // re-draw base
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 20px sans-serif';
+      // text again
+      var y2 = topMargin + lineH;
+      for (var k=0;k<lines.length;k++){ ctx.fillText(lines[k], leftMargin, y2); y2 += lineH + extraSpacing; }
+      // separator
+      ctx.fillRect(sepX, topMargin, sepWidth, H - topMargin*2);
+      // fit icon (respect max upscale like server)
+      var rw = flairColW / img.width;
+      var rh = flairTargetH / img.height;
+      var baseRatio = Math.min(rw, rh);
+      var maxScale = getFloat('flair_icon_scale_max', 2.0);
+      var ratio = Math.min(baseRatio, Math.max(1.0, maxScale));
+      // also allow downscale if needed
+      ratio = Math.min(ratio, baseRatio);
+      var nw = Math.max(1, Math.round(img.width * ratio));
+      var nh = Math.max(1, Math.round(img.height * ratio));
+      var ix = flairLeft + Math.max(0, Math.floor((flairColW - nw)/2));
+      var iy = topMargin + Math.max(0, Math.floor((H - topMargin*2 - nh)/2));
+      ctx.drawImage(img, ix, iy, nw, nh);
+    };
+    img.src = iconUrl;
+  }
+}
 window.onload = function() {
   console.log('Window loaded');
   onTypeChange();
@@ -146,7 +305,6 @@ window.onload = function() {
   if (saveBtn) {
     saveBtn.addEventListener('click', function(e) {
       console.log('Save & Start button clicked');
-      // Force submit for debugging
       var form = document.querySelector('form[method="POST"]');
       if (form) {
         form.submit();
@@ -162,6 +320,17 @@ window.onload = function() {
       window.location.href = '/';
     });
   }
+  // preview bindings
+  ['flair_separator_width','flair_separator_gap','flair_col_width','flair_target_height','min_text_width'].forEach(function(name){
+    var el = document.querySelector('input[name="'+name+'"]');
+    if (el) el.addEventListener('input', drawPreview);
+  });
+  var t = document.getElementById('previewText');
+  if (t) t.addEventListener('input', drawPreview);
+  var iconSel = document.getElementById('previewIcon');
+  if (iconSel) iconSel.addEventListener('change', drawPreview);
+  // initial draw
+  drawPreview();
 };
 </script>
 {% endblock %}

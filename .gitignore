@@ -1,0 +1,154 @@
+# -----------------------------
+# Python / Flask .gitignore
+# -----------------------------
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-venv/
+.python_env/
+.pip-venv/
+
+# Package managers / lockfiles (keep if you commit locks)
+pip-wheel-metadata/
+pip-log.txt
+poetry.lock
+poetry.toml
+.pdm.toml
+pdm.lock
+__pypackages__/
+.rye/
+uv.lock
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Unit test / coverage
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+htmlcov/
+.tox/
+.nox/
+
+# Type checker / linters
+.mypy_cache/
+.pytype/
+.dmypy.json
+ruff_cache/
+.ruff_cache/
+.pyre/
+.bandit/
+
+# Logs
+*.log
+logs/
+*.pid
+
+# Django/Flask things
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Flask environment/config
+.flaskenv
+.env
+.env.*
+.envrc
+.direnv/
+# App-local config that might be created during setup
+config.json
+
+# Media/uploads (runtime user-generated files)
+media/
+uploads/
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+.vim/
+*.swp
+*.swo
+*.kate-swp
+.history/
+.DS_Store?
+
+# OS / Filesystem
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Docker / containers
+*.pid
+*.seed
+*.cid
+
+# Shell / tooling
+*.bash_history
+*.zsh_history
+*.psql_history
+.python-version
+.tool-versions
+
+# Node (just in case tooling uses it)
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Local project artifacts
+.tmp/
+temp/
+tmp/
+.cache/
+*.bak
+*.orig
+*.retry
+
+# Task Printer project specifics (safe ignores)
+# - Favor ignoring generated assets or local state that shouldn't be versioned
+# - Do not ignore static/icons (committed assets)
+static/icons/*.tmp
+static/icons/*~
