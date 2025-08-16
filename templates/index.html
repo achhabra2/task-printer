@@ -451,6 +451,7 @@
                     newSection.style.marginBottom = '30px';
                     newSection.style.borderBottom = '1px solid #eee';
                     newSection.style.paddingBottom = '20px';
+                    const pickerInit = buildIconPickerHtml(sectionCount, 1);
                     newSection.innerHTML = `
                         <label for="subtitle_${sectionCount}">Subtitle (e.g., Cleaning kitchen):</label>
                         <input type="text" id="subtitle_${sectionCount}" name="subtitle_${sectionCount}" placeholder="Enter subtitle..." style="width:100%;padding:10px;border:2px solid #ddd;border-radius:4px;font-size:14px;box-sizing:border-box; margin-bottom: 10px;">
@@ -468,7 +469,7 @@
                                     <option value="image">Image</option>
                                     <option value="qr">QR</option>
                                 </select>
-                                <div class="flair-icon-picker" style="display:none;">${buildIconPickerHtml(sectionCount, 1)}</div>
+                                <div class="flair-icon-picker" style="display:none;">` + pickerInit + `</div>
                                 <input type="file" name="flair_image_${sectionCount}_1" class="flair-image" accept="image/*" style="display:none;">
                                 <img class="flair-preview" alt="preview">
                                 <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr" placeholder="QR data" style="display:none;">
