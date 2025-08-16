@@ -23,8 +23,20 @@ RestartSec=3
 NoNewPrivileges=true
 ProtectSystem=full
 PrivateTmp=true
-DynamicUser=$DYNAMIC_USER
-CapabilityBoundingSet=
+EOF
+
+# Optionally add DynamicUser if the variable is set (avoids emitting an empty setting)
+if [ -n "$DYNAMIC_USER" ]; then
+  echo "DynamicUser=$DYNAMIC_USER" >> $SERVICE_FILE
+fi
+
+# Optionally add CapabilityBoundingSet if provided via environment (avoid empty value)
+if [ -n "$CAPABILITY_BOUNDING_SET" ]; then
+  echo "CapabilityBoundingSet=$CAPABILITY_BOUNDING_SET" >> $SERVICE_FILE
+fi
+
+# Finish unit file
+cat >> $SERVICE_FILE <<EOF
 
 [Install]
 WantedBy=multi-user.target
@@ -72,4 +84,4 @@ echo "Restarting taskprinter.service..."
 sudo systemctl restart taskprinter.service
 
 echo "Done! Service status:"
-sudo systemctl status taskprinter.service --no-pager 
+sudo systemctl status taskprinter.service --no-pager
