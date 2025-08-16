@@ -10,7 +10,9 @@
 </div>
 <script>
 setTimeout(function() {
-    fetch('/restart', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({'auto_startup': {{ auto_startup|tojson }} })});
+    function getCookie(name){ const m = document.cookie.match(new RegExp('(^| )'+name+'=([^;]+)')); return m ? m[2] : null; }
+    const csrf = getCookie('csrf_token');
+    fetch('/restart', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf}, body: JSON.stringify({'auto_startup': {{ auto_startup|tojson }} })});
 }, 10000);
 </script>
 <meta http-equiv="refresh" content="10;url=/" />

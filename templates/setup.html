@@ -21,6 +21,7 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
 <div class="centered-card">
   <h1>⚙️ Task Printer Setup</h1>
   <form method="POST" style="width:100%;" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label style="text-align:left;">Printer Type:</label>
     <select name="printer_type" id="printer_type" onchange="onTypeChange()">
       <option value="usb">USB</option>
@@ -30,7 +31,6 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
     <label class="usb-printer-label">Select your USB printer:</label>
     <div id="usb_fields" class="usb-list">
       {% if usb_devices and usb_devices|length > 0 %}
-        <form id="usbdevs">
         {% for dev in usb_devices %}
           <div style="margin-bottom:16px;display:flex;align-items:center;text-align:left;">
             <input type="radio" name="usb_device" value="0x{{ dev.vendor }}:0x{{ dev.product }}" {% if loop.index0 == 0 %}checked{% endif %}>
@@ -47,7 +47,6 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
           <input type="radio" name="usb_device" value="manual">
           <label style="font-weight:normal;margin:0;">Other (enter manually below)</label>
         </div>
-        </form>
       {% else %}
         <div class="help" style="margin:18px 0 10px 0;">No USB printers detected. Please enter Vendor ID and Product ID manually below.</div>
       {% endif %}
@@ -72,6 +71,7 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
     <div class="auto-startup-row"><input type="checkbox" name="auto_startup" id="auto_startup"><label for="auto_startup" style="font-weight:bold;">Enable auto startup on boot (systemd)</label></div>
     <div class="button-row">
       <button type="submit" id="saveStartBtn">Save & Start</button>
+      <button type="submit" formaction="/setup_test_print" id="testPrintBtn" style="background:#17a2b8;">🧪 Test Print</button>
       {% if show_close %}
       <button type="button" class="close-btn" id="closeBtn">Close</button>
       {% endif %}

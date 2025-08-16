@@ -1,10 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Task Printer</title>
-    <style>
+{% extends "base.html" %}
+{% block content %}
+<style>
         body {
             font-family: Arial, sans-serif;
             max-width: 600px;
@@ -286,13 +282,28 @@
             border: 2px solid #444;
         }
         .top-buttons-gap { height: 60px; }
-    </style>
-</head>
-<body>
-    <button class="dark-mode-toggle" onclick="toggleDarkMode()" id="darkModeBtn">🌙 Dark Mode</button>
-    <a href="/setup" class="settings-button">⚙️ Settings</a>
-    <div class="top-buttons-gap"></div>
-    <div class="container">
+    .test-button { position: fixed; top: 14px; right: 130px; background: #17a2b8; color: #fff; border: none; border-radius: 20px; padding: 8px 18px; font-size: 16px; cursor: pointer; z-index: 10; transition: background 0.2s; text-decoration: none; }
+    .test-button:hover { background: #117a8b; color: #fff; text-decoration: none; }
+    body.dark-mode .test-button { background: #117a8b; }
+    body.dark-mode .test-button:hover { background: #0b5964; }
+</style>
+<button class="dark-mode-toggle" onclick="toggleDarkMode()" id="darkModeBtn">🌙 Dark Mode</button>
+<a href="/setup" class="settings-button">⚙️ Settings</a>
+<a href="/jobs" class="settings-button" style="right: 246px; position: fixed; top: 14px;">🧾 Jobs</a>
+<form method="POST" action="/test_print" style="position: fixed; top: 10px; right: 130px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="test-button">🧪 Test Print</button>
+</form>
+<div class="top-buttons-gap"></div>
+{% if job_id %}
+<div id="jobStatus" data-job-id="{{ job_id }}" style="margin:10px 0;padding:10px;border-left:4px solid #007bff;background:#e7f3ff;">
+  Checking job status… ({{ job_id }})
+  <span id="jobStatusText"></span>
+  <button type="button" id="stopPollingBtn" style="float:right;background:#e0e0e0;color:#222;border:none;border-radius:4px;padding:6px 10px;cursor:pointer;">Stop</button>
+  <div style="clear:both"></div>
+</div>
+{% endif %}
+<div class="container">
         <h1>📋 Task Printer</h1>
         
         <!-- Flash Messages -->
@@ -319,6 +330,7 @@
         
         <!-- Task Input Form -->
         <form method="POST" id="taskForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div id="subtitleSections">
                 <div class="subtitle-section" data-section="1" style="margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 20px;">
                     <label for="subtitle_1">Subtitle (e.g., Cleaning kitchen):</label>
@@ -337,7 +349,7 @@
             <button type="submit">Print Tasks</button>
         </form>
     </div>
-    
+
     <script>
         let sectionCount = 1;
         let taskCounts = {1: 1};
@@ -477,6 +489,32 @@
                 btn.textContent = '🌙 Dark Mode';
             }
         })();
+
+        // Optional job status polling
+        (function() {
+            const container = document.getElementById('jobStatus');
+            if (!container) return;
+            const jobId = container.getAttribute('data-job-id');
+            const text = document.getElementById('jobStatusText');
+            const stopBtn = document.getElementById('stopPollingBtn');
+            let timer = null;
+            function update() {
+                fetch(`/jobs/${jobId}`).then(r => {
+                    if (!r.ok) { throw new Error('not found'); }
+                    return r.json();
+                }).then(j => {
+                    text.textContent = `Status: ${j.status}`;
+                    if (j.status === 'success' || j.status === 'error') {
+                        clearInterval(timer);
+                    }
+                }).catch(() => {
+                    text.textContent = 'Status: unavailable';
+                    clearInterval(timer);
+                });
+            }
+            timer = setInterval(update, 2000);
+            update();
+            stopBtn.addEventListener('click', () => { if (timer) clearInterval(timer); });
+        })();
     </script>
-</body>
-</html> 
+{% endblock %}

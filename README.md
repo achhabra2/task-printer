@@ -49,7 +49,10 @@ A simple, user-friendly Flask web app for Raspberry Pi that lets you enter tasks
 ## Running the App
 1. **Start the app manually:**
    ```bash
+   # quickest
    python3 app.py
+   # or use the helper which can leverage uv/venv if configured
+   ./start.sh
    ```
 2. **Access the web interface:**
    - On the Pi: [http://localhost:5000](http://localhost:5000)
@@ -64,7 +67,12 @@ A simple, user-friendly Flask web app for Raspberry Pi that lets you enter tasks
 - Add tasks and optional subtitles using the dynamic form.
 - Click **Print Tasks** to print each task as a separate receipt.
 - Use the ⚙️ **Settings** button to reconfigure your printer or preferences at any time.
-- Toggle dark mode for easier viewing.
+ - Toggle dark mode for easier viewing.
+ - Check recent print jobs and status via the **🧾 Jobs** page.
+
+## Health Check
+
+- The endpoint `GET /healthz` returns JSON with app and printer status (worker started/alive, queue size, config presence, and basic printer reachability).
 
 ## Auto-Start on Boot (systemd)
 1. **Install the systemd service:**
@@ -106,6 +114,11 @@ taskprinter/
 ├── app.py              # Main Flask application
 ├── templates/          # HTML templates
 │   └── index.html     # Web interface
+├── docs/               # Project documentation
+│   ├── IMPLEMENTED.md  # Implemented changes and usage
+│   └── IMPROVEMENTS.md # Proposed improvements / roadmap
+│   └── DEPLOYMENT.md   # Systemd, uv/venv, Docker
+├── Dockerfile          # Container build (optional)
 ├── README.md          # This file
 └── printout_*.txt     # Generated task files
 ```
@@ -113,3 +126,9 @@ taskprinter/
 ## Stopping the Application
 
 Press `Ctrl+C` in the terminal where the application is running. 
+
+## Docs
+
+- Implemented changes and how to use them: `docs/IMPLEMENTED.md`
+- Proposed improvements and roadmap: `docs/IMPROVEMENTS.md`
+- Deployment (systemd hardening, uv/venv, Docker): `docs/DEPLOYMENT.md`

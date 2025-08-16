@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.jobs-actions { display:flex; gap:10px; justify-content:center; margin-top: -10px; }
+.jobs-actions a, .jobs-actions button { background:#e0e0e0; color:#222; border:none; border-radius:6px; padding:8px 12px; cursor:pointer; text-decoration:none; }
+.jobs-actions a:hover, .jobs-actions button:hover { background:#bdbdbd; }
+table.jobs { width:100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+table.jobs th, table.jobs td { border-bottom: 1px solid #eee; text-align: left; padding: 8px; }
+table.jobs th { color:#555; font-weight: bold; }
+.status { font-weight: bold; }
+.status.queued { color:#555; }
+.status.running { color:#007bff; }
+.status.success { color:#218838; }
+.status.error { color:#dc3545; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+</style>
+<div class="centered-card" style="max-width: 760px;">
+  <h1>🧾 Print Jobs</h1>
+  <div class="jobs-actions">
+    <a href="/">⬅ Back</a>
+    <button type="button" id="refreshBtn">Refresh</button>
+    <label style="display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" id="autoRefresh" checked> Auto-refresh
+    </label>
+  </div>
+  <table class="jobs">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Type</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Updated</th>
+        <th>Meta</th>
+      </tr>
+    </thead>
+    <tbody id="jobsBody">
+      {% for j in jobs %}
+      <tr>
+        <td class="mono"><a href="/jobs/{{ j.id }}" target="_blank">{{ j.id[:8] }}</a></td>
+        <td>{{ j.type }}</td>
+        <td class="status {{ j.status }}">{{ j.status }}</td>
+        <td class="mono">{{ j.created_at }}</td>
+        <td class="mono">{{ j.updated_at }}</td>
+        <td class="mono">{% if j.total %}total={{ j.total }} {% endif %}{% if j.origin %}origin={{ j.origin }}{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;color:#666;">No jobs yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<script>
+(function(){
+  const btn = document.getElementById('refreshBtn');
+  const auto = document.getElementById('autoRefresh');
+  function reload() { window.location.reload(); }
+  btn.addEventListener('click', reload);
+  let timer = setInterval(() => { if (auto.checked) reload(); }, 5000);
+})();
+</script>
+{% endblock %}
+

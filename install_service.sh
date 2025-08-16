@@ -2,9 +2,11 @@
 # Install or update the taskprinter systemd service
 
 SERVICE_FILE=taskprinter.service
+ENV_FILE=/etc/default/taskprinter
 USER=$(whoami)
 WORKDIR=$(pwd)
 
+# Create or update systemd unit file
 cat > $SERVICE_FILE <<EOF
 [Unit]
 Description=Task Printer Flask App
@@ -14,13 +16,48 @@ After=network.target
 Type=simple
 User=$USER
 WorkingDirectory=$WORKDIR
-ExecStart=/usr/bin/python3 $WORKDIR/app.py
-Restart=always
-RestartSec=5
+EnvironmentFile=$ENV_FILE
+ExecStart=/bin/bash $WORKDIR/start.sh
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+DynamicUser=$DYNAMIC_USER
+CapabilityBoundingSet=
 
 [Install]
 WantedBy=multi-user.target
 EOF
+
+# Ensure default environment file exists with helpful placeholders
+if [ ! -f "$ENV_FILE" ]; then
+  echo "Creating default env file at $ENV_FILE (requires sudo)..."
+  TMP_ENV=$(mktemp)
+  cat > "$TMP_ENV" <<ENVEOF
+# Environment for Task Printer service
+# Provide a strong random secret for Flask sessions
+# TASKPRINTER_SECRET_KEY=change_me_to_a_random_string
+
+# Optional: override where config.json is stored
+# TASKPRINTER_CONFIG_PATH=
+
+# Logging options
+# TASKPRINTER_JSON_LOGS=false
+
+# Runtime options
+# USE_UV=false           # If true and 'uv' is available, runs via uv
+# VENV_PATH=             # If set and points to a venv, uses that venv
+
+# Systemd hardening options
+# Set to 'yes' to enable dynamic user sandboxing (leave empty to disable)
+# Note: If enabling, consider removing/ignoring the static User= in unit.
+# DYNAMIC_USER=no
+ENVEOF
+  sudo mkdir -p "$(dirname "$ENV_FILE")"
+  sudo cp "$TMP_ENV" "$ENV_FILE"
+  rm -f "$TMP_ENV"
+fi
 
 echo "Copying $SERVICE_FILE to /etc/systemd/system/taskprinter.service (requires sudo)..."
 sudo cp -f $SERVICE_FILE /etc/systemd/system/taskprinter.service

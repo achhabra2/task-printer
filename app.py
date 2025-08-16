@@ -11,11 +11,38 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 import json
 import subprocess
+import threading
+import queue
+from pathlib import Path
+import logging
+import uuid
+from time import time
+from flask_wtf import CSRFProtect
+from flask_wtf.csrf import generate_csrf
 
 app = Flask(__name__)
-app.secret_key = 'taskprinter_secret_key_2024'  # Required for flash messages
+# Secret key from env, with safe dev fallback
+app.secret_key = os.environ.get('TASKPRINTER_SECRET_KEY', 'taskprinter_dev_secret_key')
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
+# Basic input and payload limits
+app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('TASKPRINTER_MAX_CONTENT_LENGTH', 1024 * 1024))  # 1MB default
+MAX_SECTIONS = int(os.environ.get('TASKPRINTER_MAX_SECTIONS', 50))
+MAX_TASKS_PER_SECTION = int(os.environ.get('TASKPRINTER_MAX_TASKS_PER_SECTION', 50))
+MAX_TASK_LEN = int(os.environ.get('TASKPRINTER_MAX_TASK_LEN', 200))
+MAX_SUBTITLE_LEN = int(os.environ.get('TASKPRINTER_MAX_SUBTITLE_LEN', 100))
+MAX_TOTAL_CHARS = int(os.environ.get('TASKPRINTER_MAX_TOTAL_CHARS', 5000))
+
+csrf = CSRFProtect(app)
+
+# Config path resolution: env override -> XDG config -> legacy fallback
+def _default_config_path():
+    xdg = os.environ.get('XDG_CONFIG_HOME')
+    if xdg:
+        return os.path.join(xdg, 'taskprinter', 'config.json')
+    home = str(Path.home())
+    return os.path.join(home, '.config', 'taskprinter', 'config.json')
+
+CONFIG_PATH = os.environ.get('TASKPRINTER_CONFIG_PATH', _default_config_path())
 
 def load_config():
     if os.path.exists(CONFIG_PATH):
@@ -24,18 +51,157 @@ def load_config():
     return None
 
 def save_config(data):
+    cfg_dir = os.path.dirname(CONFIG_PATH)
+    if cfg_dir and not os.path.exists(cfg_dir):
+        os.makedirs(cfg_dir, exist_ok=True)
     with open(CONFIG_PATH, 'w') as f:
         json.dump(data, f, indent=2)
+
+# Logging setup with request IDs and optional systemd journal integration
+class RequestIdFilter(logging.Filter):
+    def filter(self, record):
+        try:
+            from flask import has_request_context, g
+            record.request_id = g.request_id if has_request_context() and hasattr(g, 'request_id') else '-'
+            record.path = request.path if has_request_context() else '-'
+        except Exception:
+            record.request_id = '-'
+            record.path = '-'
+        return True
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        from json import dumps
+        base = {
+            'ts': self.formatTime(record, self.datefmt),
+            'level': record.levelname,
+            'msg': record.getMessage(),
+            'request_id': getattr(record, 'request_id', '-')
+        }
+        # Include extras if present
+        if hasattr(record, 'path'):
+            base['path'] = getattr(record, 'path')
+        return dumps(base, ensure_ascii=False)
+
+def configure_logging():
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    # Clear default handlers to avoid duplicate logs when reloading
+    logger.handlers = []
+    json_logs = os.environ.get('TASKPRINTER_JSON_LOGS', 'false').lower() in ('1', 'true', 'yes')
+    if json_logs:
+        fmt = JsonFormatter()
+    else:
+        fmt = logging.Formatter('[%(asctime)s] %(levelname)s %(request_id)s %(message)s')
+    # Try systemd journal
+    handler = None
+    try:
+        from systemd.journal import JournalHandler  # type: ignore
+        handler = JournalHandler()
+        handler.setFormatter(fmt)
+    except Exception:
+        handler = logging.StreamHandler()
+        handler.setFormatter(fmt)
+    handler.addFilter(RequestIdFilter())
+    logger.addHandler(handler)
+    # Also direct Flask's app.logger to root
+    app.logger.handlers = []
+    app.logger.propagate = True
+
+configure_logging()
+
+# Simple background job queue for printing
+JOB_QUEUE: "queue.Queue[dict]" = queue.Queue()
+WORKER_STARTED = False
+JOBS = {}
+JOBS_MAX = 200
+
+def _print_worker():
+    while True:
+        job = JOB_QUEUE.get()
+        try:
+            kind = job.get('type')
+            job_id = job.get('job_id')
+            _update_job(job_id, status='running')
+            if kind == 'tasks':
+                subtitle_tasks = job.get('payload', [])
+                ok = print_tasks(subtitle_tasks)
+                _update_job(job_id, status='success' if ok else 'error')
+            elif kind == 'test':
+                cfg = job.get('config_override')
+                ok = _do_test_print(cfg)
+                _update_job(job_id, status='success' if ok else 'error')
+            else:
+                app.logger.warning(f"Unknown job type: {kind}")
+                _update_job(job_id, status='error', error='unknown_job_type')
+        except Exception as e:
+            app.logger.exception(f"Job failed: {e}")
+            try:
+                _update_job(job.get('job_id'), status='error', error=str(e))
+            except Exception:
+                pass
+        finally:
+            JOB_QUEUE.task_done()
+
+def ensure_worker():
+    global WORKER_STARTED
+    if not WORKER_STARTED:
+        t = threading.Thread(target=_print_worker, daemon=True)
+        t.start()
+        WORKER_STARTED = True
+        globals()['PRINT_WORKER_THREAD'] = t
+
+def _update_job(job_id, **updates):
+    if not job_id:
+        return
+    job = JOBS.get(job_id)
+    if not job:
+        return
+    job.update(updates)
+    job['updated_at'] = datetime.utcnow().isoformat()
+
+def _create_job(kind, meta=None):
+    job_id = uuid.uuid4().hex
+    now = datetime.utcnow().isoformat()
+    job = {
+        'id': job_id,
+        'type': kind,
+        'status': 'queued',
+        'created_at': now,
+        'updated_at': now,
+    }
+    if meta:
+        job.update(meta)
+    # prune if needed
+    if len(JOBS) >= JOBS_MAX:
+        # remove oldest
+        oldest = sorted(JOBS.values(), key=lambda j: j.get('created_at'))[0]['id']
+        JOBS.pop(oldest, None)
+    JOBS[job_id] = job
+    return job_id
 
 # On every request, check for config.json
 from flask import g
 @app.before_request
 def check_config():
+    # Assign a request id for logging
+    g.request_id = uuid.uuid4().hex
     if not request.path.startswith('/setup'):
+        if request.path.startswith('/setup_test_print'):
+            return None
         config = load_config()
         if not config:
             return redirect(url_for('setup'))
         g.config = config
+
+@app.after_request
+def set_csrf_cookie(response):
+    try:
+        token = generate_csrf()
+        response.set_cookie('csrf_token', token, secure=False, httponly=False, samesite='Lax')
+    except Exception:
+        pass
+    return response
 
 def get_usb_devices():
     try:
@@ -130,9 +296,9 @@ def print_tasks(subtitle_tasks):
     config = load_config()
     if config is None:
         raise RuntimeError("No config found. Please complete setup at /setup.")
-    print(f"Starting print job for {len(subtitle_tasks)} tasks (subtitle/task pairs)...")
+    app.logger.info(f"Starting print job for {len(subtitle_tasks)} tasks (subtitle/task pairs)...")
     try:
-        print("Attempting to connect to printer...")
+        app.logger.info("Attempting to connect to printer...")
         p = None
         if config['printer_type'] == 'usb':
             p = Usb(int(config['usb_vendor_id'], 16), int(config['usb_product_id'], 16))
@@ -144,11 +310,11 @@ def print_tasks(subtitle_tasks):
             p = Serial(config['serial_port'], baudrate=int(config['serial_baudrate']))
         else:
             raise Exception('Unsupported printer type')
-        print("✓ Printer connection established")
+        app.logger.info("Printer connection established")
         for i, (subtitle, task) in enumerate(subtitle_tasks, 1):
             if not task.strip():
                 continue
-            print(f"Printing receipt for task {i}: {task.strip()} (Subtitle: {subtitle})")
+            app.logger.info(f"Printing receipt for task {i}: {task.strip()} (Subtitle: {subtitle})")
             p.text("\n\n")
             p.set(align='left', bold=False, width=1, height=1)
             p.text("------------------------------------------------\n")
@@ -161,18 +327,60 @@ def print_tasks(subtitle_tasks):
             p.text("------------------------------------------------\n")
             p.text("\n\n")
             p.cut()
-            print(f"✓ Printed and cut receipt for task {i}")
+            app.logger.info(f"Printed and cut receipt for task {i}")
         p.close()
-        print("✓ Printer connection closed")
-        print("✓ All tasks printed as separate receipts successfully")
+        app.logger.info("Printer connection closed")
+        app.logger.info("All tasks printed as separate receipts successfully")
         return True
     except Exception as e:
-        print(f"❌ Printer error: {str(e)}")
-        print(f"❌ Error type: {type(e).__name__}")
-        import traceback
-        print(f"❌ Full traceback:")
-        traceback.print_exc()
+        app.logger.exception(f"Printer error: {str(e)}")
         return False
+
+def print_tasks_with_config(subtitle_tasks, config):
+    # Temporarily run print using provided config
+    if config is None:
+        return False
+    # We reuse render_large_text_image with config override already supported
+    try:
+        app.logger.info("Starting print (override config)")
+        p = None
+        if config['printer_type'] == 'usb':
+            p = Usb(int(config['usb_vendor_id'], 16), int(config['usb_product_id'], 16))
+        elif config['printer_type'] == 'network':
+            from escpos.printer import Network
+            p = Network(config['network_ip'], int(config['network_port']))
+        elif config['printer_type'] == 'serial':
+            from escpos.printer import Serial
+            p = Serial(config['serial_port'], baudrate=int(config['serial_baudrate']))
+        else:
+            raise Exception('Unsupported printer type')
+        for i, (subtitle, task) in enumerate(subtitle_tasks, 1):
+            if not task.strip():
+                continue
+            p.text("\n\n")
+            p.set(align='left', bold=False, width=1, height=1)
+            p.text("------------------------------------------------\n")
+            if subtitle:
+                p.set(align='left', bold=False, width=1, height=1)
+                p.text(f"{subtitle}\n")
+            img = render_large_text_image(task.strip(), config)
+            p.image(img)
+            p.set(align='left', bold=False, width=1, height=1)
+            p.text("------------------------------------------------\n")
+            p.text("\n\n")
+            p.cut()
+        p.close()
+        return True
+    except Exception as e:
+        app.logger.exception(f"Override-config print failed: {e}")
+        return False
+
+def _do_test_print(config_override=None):
+    config = config_override or load_config()
+    if config is None:
+        raise RuntimeError("No config found. Please complete setup at /setup.")
+    test_pairs = [("TEST", "Task Printer Test Page"), (datetime.now().strftime('%Y-%m-%d %H:%M'), "Hello from Task Printer!")]
+    return print_tasks_with_config(test_pairs, config)
 
 def render_large_text_image(text, config=None):
     if config is None:
@@ -216,10 +424,11 @@ def render_large_text_image(text, config=None):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        # Parse all subtitle/task groups from the form
+        # Parse all subtitle/task groups from the form with limits
         subtitle_tasks = []
         form = request.form
         section = 1
+        total_chars = 0
         while True:
             subtitle_key = f'subtitle_{section}'
             subtitle = form.get(subtitle_key, '').strip()
@@ -229,6 +438,12 @@ def index():
             if not subtitle:
                 # No more sections
                 break
+            if len(subtitle) > MAX_SUBTITLE_LEN:
+                flash(f'Subtitle in section {section} is too long (max {MAX_SUBTITLE_LEN}).', 'error')
+                return redirect(url_for('index'))
+            if _has_control_chars(subtitle):
+                flash('Subtitles cannot contain control characters.', 'error')
+                return redirect(url_for('index'))
             # Find all tasks for this section
             task_num = 1
             while True:
@@ -236,24 +451,162 @@ def index():
                 task = form.get(task_key, '').strip()
                 if not task:
                     break
+                if len(task) > MAX_TASK_LEN:
+                    flash(f'Task {task_num} in section {section} is too long (max {MAX_TASK_LEN}).', 'error')
+                    return redirect(url_for('index'))
+                if _has_control_chars(task):
+                    flash('Tasks cannot contain control characters.', 'error')
+                    return redirect(url_for('index'))
                 subtitle_tasks.append((subtitle, task))
                 task_num += 1
+                if task_num > MAX_TASKS_PER_SECTION:
+                    flash(f'Too many tasks in section {section} (max {MAX_TASKS_PER_SECTION}).', 'error')
+                    return redirect(url_for('index'))
             section += 1
+            if section > MAX_SECTIONS:
+                flash(f'Too many sections (max {MAX_SECTIONS}).', 'error')
+                return redirect(url_for('index'))
+        total_chars = sum(len(s) + len(t) for s, t in subtitle_tasks)
+        if total_chars > MAX_TOTAL_CHARS:
+            flash(f'Input too large (max total characters {MAX_TOTAL_CHARS}).', 'error')
+            return redirect(url_for('index'))
         if not subtitle_tasks:
             flash('Please enter at least one task.', 'error')
             return redirect(url_for('index'))
         try:
-            if print_tasks(subtitle_tasks):
-                flash(f'{len(subtitle_tasks)} tasks sent to printer successfully!', 'success')
-            else:
-                flash('Error: Could not print tasks. Check printer connection.', 'error')
+            ensure_worker()
+            job_id = _create_job('tasks', meta={'total': len(subtitle_tasks)})
+            JOB_QUEUE.put({'type': 'tasks', 'payload': subtitle_tasks, 'job_id': job_id})
+            flash(f'Queued {len(subtitle_tasks)} task(s) for printing. Job: {job_id}', 'success')
+            return redirect(url_for('index', job=job_id))
         except Exception as e:
-            flash(f'Error printing tasks: {str(e)}', 'error')
+            flash(f'Error queuing print job: {str(e)}', 'error')
         return redirect(url_for('index'))
-    return render_template('index.html')
+    job_id = request.args.get('job')
+    return render_template('index.html', job_id=job_id)
+
+@app.route('/test_print', methods=['POST'])
+def test_print():
+    try:
+        ensure_worker()
+        job_id = _create_job('test')
+        JOB_QUEUE.put({'type': 'test', 'job_id': job_id})
+        flash(f'Test print queued. Job: {job_id}', 'success')
+        return redirect(url_for('index', job=job_id))
+    except Exception as e:
+        flash(f'Error queuing test print: {str(e)}', 'error')
+    return redirect(url_for('index'))
+
+@app.route('/jobs/<job_id>')
+def job_status(job_id):
+    job = JOBS.get(job_id)
+    if not job:
+        return ({'error': 'not_found'}, 404)
+    return job
+
+@app.route('/jobs')
+def jobs_list():
+    # Return recent jobs sorted by created_at descending
+    jobs = list(JOBS.values())
+    try:
+        jobs.sort(key=lambda j: j.get('created_at', ''), reverse=True)
+    except Exception:
+        pass
+    return render_template('jobs.html', jobs=jobs)
+
+@app.route('/setup_test_print', methods=['POST'])
+def setup_test_print():
+    # Build config from form values without saving, then queue a test print
+    form = request.form
+    printer_type = form.get('printer_type', 'usb')
+    if printer_type == 'usb':
+        selected_usb = form.get('usb_device', '')
+        if selected_usb and selected_usb != 'manual':
+            usb_vendor_id, usb_product_id = selected_usb.split(':')
+        else:
+            usb_vendor_id = form.get('usb_vendor_id', '0x04b8')
+            usb_product_id = form.get('usb_product_id', '0x0e28')
+    else:
+        usb_vendor_id = form.get('usb_vendor_id', '0x04b8')
+        usb_product_id = form.get('usb_product_id', '0x0e28')
+    network_ip = form.get('network_ip', '')
+    network_port = form.get('network_port', '9100')
+    serial_port = form.get('serial_port', '')
+    serial_baudrate = form.get('serial_baudrate', '19200')
+    # Match width/font size logic from setup
+    receipt_width = 512
+    task_font_size = 72
+    if printer_type == 'usb':
+        if usb_vendor_id.lower() == '0x04b8':
+            if usb_product_id.lower() in ['0x0e28', '0x0202', '0x020a', '0x0e15', '0x0e03']:
+                receipt_width = 512
+            else:
+                receipt_width = 576
+    if receipt_width >= 576:
+        task_font_size = 90
+    elif receipt_width >= 512:
+        task_font_size = 72
+    else:
+        task_font_size = 60
+    config = {
+        'printer_type': printer_type,
+        'usb_vendor_id': usb_vendor_id,
+        'usb_product_id': usb_product_id,
+        'network_ip': network_ip,
+        'network_port': network_port,
+        'serial_port': serial_port,
+        'serial_baudrate': serial_baudrate,
+        'receipt_width': receipt_width,
+        'task_font_size': task_font_size,
+    }
+    try:
+        ensure_worker()
+        job_id = _create_job('test', meta={'origin': 'setup'})
+        JOB_QUEUE.put({'type': 'test', 'job_id': job_id, 'config_override': config})
+        flash(f'Setup Test Print queued. Job: {job_id}', 'success')
+    except Exception as e:
+        flash(f'Error queuing setup test print: {str(e)}', 'error')
+    return redirect(url_for('setup'))
+
+def _has_control_chars(s: str) -> bool:
+    return any((ord(c) < 32 and c not in '\n\r\t') or ord(c) == 127 for c in s)
+
+@app.route('/healthz')
+def healthz():
+    status = {
+        'status': 'ok',
+        'worker_started': WORKER_STARTED,
+        'worker_alive': bool(globals().get('PRINT_WORKER_THREAD', None)) and globals()['PRINT_WORKER_THREAD'].is_alive(),
+        'queue_size': JOB_QUEUE.qsize(),
+    }
+    cfg = load_config()
+    if not cfg:
+        status['status'] = 'degraded'
+        status['reason'] = 'no_config'
+        return status, 200
+    # Try basic printer reachability
+    try:
+        if cfg['printer_type'] == 'usb':
+            _ = Usb(int(cfg['usb_vendor_id'], 16), int(cfg['usb_product_id'], 16))
+            _.close()
+        elif cfg['printer_type'] == 'network':
+            from escpos.printer import Network
+            _ = Network(cfg['network_ip'], int(cfg['network_port']))
+            _.close()
+        elif cfg['printer_type'] == 'serial':
+            from escpos.printer import Serial
+            _ = Serial(cfg['serial_port'], baudrate=int(cfg['serial_baudrate']))
+            _.close()
+        status['printer_ok'] = True
+    except Exception as e:
+        status['printer_ok'] = False
+        status['status'] = 'degraded'
+        status['reason'] = f'printer_unreachable: {type(e).__name__}'
+    return status, 200
 
 if __name__ == '__main__':
-    print("Starting Task Printer on http://0.0.0.0:5000")
-    print("Access from local network: http://[raspberry-pi-ip]:5000")
-    print("Press Ctrl+C to stop the server")
+    app.logger.info("Starting Task Printer on http://0.0.0.0:5000")
+    app.logger.info("Access from local network: http://[raspberry-pi-ip]:5000")
+    app.logger.info("Press Ctrl+C to stop the server")
+    ensure_worker()
     app.run(host='0.0.0.0', port=5000, debug=False) 
