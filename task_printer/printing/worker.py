@@ -19,6 +19,7 @@ import queue
 import threading
 import uuid
 from collections.abc import Iterable, Mapping
+import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -165,7 +166,14 @@ def _connect_printer(config: Mapping[str, Any]):
     raise RuntimeError(f"Unsupported printer type: {ptype}")
 
 
-def _print_subtitle_task_item(p, idx: int, item: SubtitleTask, config: Mapping[str, Any]) -> None:
+def _print_subtitle_task_item(
+    p,
+    idx: int,
+    item: SubtitleTask,
+    config: Mapping[str, Any],
+    *,
+    cut: bool = True,
+) -> None:
     """
     Print a single subtitle/task item using the given printer instance.
     Handles optional flair (icon/image/qr), separators, and cutting lines.
@@ -242,12 +250,14 @@ def _print_subtitle_task_item(p, idx: int, item: SubtitleTask, config: Mapping[s
         extra = 2
     if extra > 0:
         p.text("\n" * extra)
-    p.cut()
+    if cut:
+        p.cut()
+        logger.info(f"Printed and cut receipt for task {idx}")
+    else:
+        logger.info(f"Printed receipt for task {idx} (no cut; tear-off mode)")
 
-    logger.info(f"Printed and cut receipt for task {idx}")
 
-
-def print_tasks(subtitle_tasks: Iterable[SubtitleTask]) -> bool:
+def print_tasks(subtitle_tasks: Iterable[SubtitleTask], options: Optional[Mapping[str, Any]] = None) -> bool:
     """
     Print provided subtitle/task items using the saved config.
     Returns True on success, False on failure.
@@ -264,8 +274,25 @@ def print_tasks(subtitle_tasks: Iterable[SubtitleTask]) -> bool:
         p = _connect_printer(config)
         logger.info("Printer connection established")
 
-        for i, item in enumerate(subtitle_tasks, 1):
-            _print_subtitle_task_item(p, i, item, config)
+        # Determine per-job options
+        delay = 0.0
+        if options is not None:
+            try:
+                delay = float(options.get("tear_delay_seconds", 0) or 0)
+            except Exception:
+                delay = 0.0
+        tear_mode = delay > 0
+        if tear_mode:
+            logger.info("Tear-off mode enabled: delay=%.3fs; cut disabled", delay)
+
+        items = list(subtitle_tasks)
+        total = len(items)
+        for i, item in enumerate(items, 1):
+            _print_subtitle_task_item(p, i, item, config, cut=not tear_mode)
+            # Sleep between items when in tear-off mode (not after the last)
+            if tear_mode and i < total:
+                logger.info("Sleeping %.3fs before next task (#%d -> #%d)", delay, i, i + 1)
+                time.sleep(delay)
 
         try:
             p.close()
@@ -291,7 +318,7 @@ def print_tasks_with_config(subtitle_tasks: Iterable[SubtitleTask], config: Mapp
         logger.info("Starting print (override config)")
         p = _connect_printer(config)
         for i, item in enumerate(subtitle_tasks, 1):
-            _print_subtitle_task_item(p, i, item, config)
+            _print_subtitle_task_item(p, i, item, config, cut=True)
         try:
             p.close()
         except Exception:
@@ -331,7 +358,8 @@ def _print_worker() -> None:
 
             if kind == "tasks":
                 payload = job.get("payload", [])
-                ok = print_tasks(payload)
+                opts = job.get("options")
+                ok = print_tasks(payload, options=opts)
                 _update_job(job_id, status="success" if ok else "error")
             elif kind == "test":
                 cfg = job.get("config_override")
@@ -364,15 +392,22 @@ def ensure_worker() -> None:
     logger.info("Background print worker started")
 
 
-def enqueue_tasks(subtitle_tasks: Iterable[SubtitleTask]) -> str:
+def enqueue_tasks(subtitle_tasks: Iterable[SubtitleTask], options: Optional[Mapping[str, Any]] = None) -> str:
     """
     Enqueue a 'tasks' job. Returns the job id.
     """
     # Evaluate len for metadata if possible without exhausting the iterator
     total = len(list(subtitle_tasks)) if hasattr(subtitle_tasks, "__len__") else None
     payload = list(subtitle_tasks)  # Ensure it's serializable and reusable in the worker
-    job_id = _create_job("tasks", meta={"total": len(payload) if total is None else total})
-    JOB_QUEUE.put({"type": "tasks", "payload": payload, "job_id": job_id})
+    # Brief meta for job list/debugging
+    meta: Dict[str, Any] = {"total": len(payload) if total is None else total}
+    try:
+        if options and float(options.get("tear_delay_seconds", 0) or 0) > 0:
+            meta["delay_seconds"] = float(options.get("tear_delay_seconds", 0))
+    except Exception:
+        pass
+    job_id = _create_job("tasks", meta=meta)
+    JOB_QUEUE.put({"type": "tasks", "payload": payload, "options": dict(options) if options else None, "job_id": job_id})
     return job_id
 
 

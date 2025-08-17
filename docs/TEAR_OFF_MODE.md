@@ -143,33 +143,38 @@ Use `create_app(register_worker=False)` and mock worker functions for fast, isol
 ## Rollout plan
 
 - Implement and land behind minimal UI change on `/` page.
-- No changes to setup or test print routes (test print continues to cut).
+- Setup: add an optional global default `default_tear_delay_seconds` persisted in `config.json`.
+- Templates: when printing directly from the Templates page, use the global default if set.
+- Test print continues to cut by default (no change).
 - Default behavior remains unchanged for users who do not supply a delay.
-- Update `AGENTS.md` to mention the new per-print option briefly after merging.
+- Update docs (`AGENTS.md`, README) to mention the per‑print option and the global default.
 
 ## Implementation checklist
 
 Frontend:
-- [ ] Add “Tear-off delay (seconds)” number input to `templates/index.html` near the submit button.
+- [x] Add “Tear-off delay (seconds)” number input to `templates/index.html` near the submit button (preloaded from config when available).
 
 Web (routes):
-- [ ] Parse and validate `tear_delay_seconds` in `POST /`.
-- [ ] Add `options` dict on enqueue when `delay > 0`.
+- [x] Parse and validate `tear_delay_seconds` in `POST /`.
+- [x] Add `options` dict on enqueue when `delay > 0`.
+- [x] Setup: parse/save `default_tear_delay_seconds` and preload into Index.
 
 Worker:
-- [ ] Update `enqueue_tasks(...)` to accept `options` and place on queue payload; store brief meta on job.
-- [ ] Update `_print_worker()` to pass `options` to `print_tasks(...)`.
-- [ ] Update `print_tasks(...)` to compute `tear_mode` from options, suppress cuts, and sleep between tasks.
-- [ ] Update `_print_subtitle_task_item(...)` to accept `cut: bool = True` and skip `p.cut()` when false.
+- [x] Update `enqueue_tasks(...)` to accept `options` and place on queue payload; store brief meta on job.
+- [x] Update `_print_worker()` to pass `options` to `print_tasks(...)`.
+- [x] Update `print_tasks(...)` to compute `tear_mode` from options, suppress cuts, and sleep between tasks.
+- [x] Update `_print_subtitle_task_item(...)` to accept `cut: bool = True` and skip `p.cut()` when false.
 
 Observability:
-- [ ] Add informative logs for tear-off mode and sleeps.
+- [x] Add informative logs for tear-off mode and sleeps.
 
 Tests:
-- [ ] Add unit tests for worker and route parsing as described.
+- [x] Add unit tests for worker and route parsing as described.
+- [x] Add tests for Setup saving and Index/Template defaults behavior.
 
 Docs:
-- [ ] Merge this file and note the new option in `AGENTS.md` “Routes (now implemented as blueprints)” → “GET/POST /” section and “Coding guidelines” if relevant.
+- [x] Merge this file and note the new option in `AGENTS.md` “Routes (now implemented as blueprints)” → “GET/POST /” section and “Coding guidelines” if relevant.
+- [x] README updated: feature bullet, usage, configuration key.
 
 ## Future enhancements
 
@@ -184,6 +189,7 @@ Docs:
 - When `tear_delay_seconds` > 0:
   - No cut commands are sent between tasks.
   - The worker sleeps `X` seconds between tasks (not after the last one).
+- Optional global default `default_tear_delay_seconds` can be set in Setup; Templates honor it and Index preloads it.
 - The UI remains simple and unobtrusive; default behavior is unchanged.
-- Tests cover worker orchestration and form parsing boundaries.
+- Tests cover worker orchestration, form parsing boundaries, and default handling.
 - Logs clearly indicate tear-off mode and timing.

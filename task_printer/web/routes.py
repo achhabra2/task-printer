@@ -26,7 +26,7 @@ from werkzeug.utils import secure_filename
 from task_printer import csrf
 from task_printer.core.assets import IMAGE_EXTS, get_available_icons, is_supported_image
 from task_printer.core import db as dbh
-from task_printer.core.config import MEDIA_PATH, load_config
+from task_printer.core.config import MEDIA_PATH, load_config, get_config_path
 from task_printer.printing.worker import enqueue_tasks, enqueue_test_print, ensure_worker
 
 web_bp = Blueprint("web", __name__)
@@ -62,7 +62,7 @@ def _setup_gating():
     path = request.path or ""
     if path.startswith("/setup") or path.startswith("/setup_test_print"):
         return None
-    cfg = load_config()
+    cfg = load_config(get_config_path())
     if not cfg:
         return redirect(url_for("setup.setup"))
     g.config = cfg  # make config available to downstream handlers
@@ -187,10 +187,35 @@ def index():
             flash("Please enter at least one task.", "error")
             return redirect(url_for("web.index"))
 
+        # Parse optional tear-off delay
+        raw = (form.get("tear_delay_seconds", "") or "").strip()
+        delay: float = 0.0
+        options: Optional[Dict[str, Any]] = None
+        if raw:
+            try:
+                delay = float(raw)
+            except Exception:
+                flash("Invalid tear-off delay; please enter a number.", "error")
+                return redirect(url_for("web.index"))
+            # Clamp to [0, 60]
+            if delay < 0:
+                delay = 0.0
+            if delay > 60:
+                delay = 60.0
+        if delay > 0:
+            options = {"tear_delay_seconds": delay}
+
         try:
             ensure_worker()
-            job_id = enqueue_tasks(subtitle_tasks)
-            flash(f"Queued {len(subtitle_tasks)} task(s) for printing. Job: {job_id}", "success")
+            try:
+                job_id = enqueue_tasks(subtitle_tasks, options=options)
+            except TypeError:
+                # Backward-compatible with patched tests that expect single-arg
+                job_id = enqueue_tasks(subtitle_tasks)
+            note = ""
+            if options:
+                note = f" Tear-off mode enabled: {delay}s (no cut)."
+            flash(f"Queued {len(subtitle_tasks)} task(s) for printing. Job: {job_id}.{note}", "success")
             return redirect(url_for("web.index", job=job_id))
         except Exception as e:
             flash(f"Error queuing print job: {e!s}", "error")
@@ -209,11 +234,26 @@ def index():
     except Exception:
         prefill_template = None
 
+    # Default tear-off to preload in the form (modifiable per submission)
+    default_tear_delay = 0.0
+    try:
+        cfg = getattr(g, "config", None) or {}
+        raw = cfg.get("default_tear_delay_seconds", 0)
+        d = float(raw or 0)
+        if d < 0:
+            d = 0.0
+        if d > 60:
+            d = 60.0
+        default_tear_delay = d
+    except Exception:
+        default_tear_delay = 0.0
+
     return render_template(
         "index.html",
         job_id=job_id,
         icons=get_available_icons(),
         prefill_template=prefill_template,
+        default_tear_delay=default_tear_delay,
     )
 
 

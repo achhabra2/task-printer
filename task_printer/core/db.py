@@ -23,14 +23,18 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 try:
     # Flask is available in this project; we integrate with app context when present.
-    from flask import g, has_app_context
+    from flask import g, has_app_context, current_app
 except Exception:  # pragma: no cover - fallback if Flask import ever fails
     g = None  # type: ignore
     has_app_context = lambda: False  # type: ignore
+    current_app = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
+
+# Shared test connection for in-memory DB when running under Flask test app
+_DB_TEST_CONN: Optional[sqlite3.Connection] = None
 
 # ----- Limits and validation -------------------------------------------------
 
@@ -193,8 +197,21 @@ def get_db(path: Optional[str] = None) -> sqlite3.Connection:
     Return a sqlite3 connection; per-request if Flask app context is active, otherwise a module-level singleton.
     """
     if has_app_context():
+        # In testing, prefer a shared in-memory DB across requests unless an explicit path is provided
+        use_path = path
+        try:
+            is_testing = bool(current_app and current_app.config.get("TESTING"))
+        except Exception:
+            is_testing = False
+        if is_testing and not use_path and "TASKPRINTER_DB_PATH" not in os.environ:
+            global _DB_TEST_CONN
+            if _DB_TEST_CONN is None:
+                _DB_TEST_CONN = _connect(":memory:")
+                _ensure_schema(_DB_TEST_CONN)
+            return _DB_TEST_CONN
+
         if not hasattr(g, "db"):
-            g.db = _connect(path)
+            g.db = _connect(use_path)
             _ensure_schema(g.db)
         return g.db  # type: ignore[attr-defined]
 

@@ -9,6 +9,7 @@ A simple, user-friendly Flask web app for Raspberry Pi that lets you enter tasks
 - Each task prints as a separate receipt with clear formatting
 - Supports USB, network, and serial receipt printers (via python-escpos)
 - Dynamic task and subtitle sections
+ - Per‑print tear‑off mode (optional delay between tasks, no cut)
 - Dark mode and responsive design
 - Easy first-run setup and reconfiguration via web UI
 - Systemd service for auto-start on boot
@@ -66,6 +67,7 @@ A simple, user-friendly Flask web app for Raspberry Pi that lets you enter tasks
 ## Using the Web Interface
 - Add tasks and optional subtitles using the dynamic form.
 - Click **Print Tasks** to print each task as a separate receipt.
+ - Optional: set a “Tear‑off delay (seconds)” to wait between tasks and disable cutting for that print. Leave blank/0 for default behavior.
 - Use the ⚙️ **Settings** button to reconfigure your printer or preferences at any time.
  - Toggle dark mode for easier viewing.
  - Check recent print jobs and status via the **🧾 Jobs** page.
@@ -127,6 +129,10 @@ taskprinter/
 ## Stopping the Application
 
 Press `Ctrl+C` in the terminal where the application is running. 
+
+## Configuration
+
+- Global default tear‑off delay: set `default_tear_delay_seconds` in `config.json` (0–60). When set, template prints use this value by default and the Index page preloads it into the tear‑off input. Users can override it per print.
 
 ## Docs
 

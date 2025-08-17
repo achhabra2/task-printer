@@ -26,7 +26,7 @@ from werkzeug.utils import secure_filename
 
 from task_printer.core import db as dbh
 from task_printer.core.assets import IMAGE_EXTS, is_supported_image
-from task_printer.core.config import MEDIA_PATH
+from task_printer.core.config import MEDIA_PATH, load_config
 from task_printer.printing import worker
 
 templates_bp = Blueprint("templates", __name__)
@@ -349,7 +349,27 @@ def print_template_route(template_id: int):
         return {"error": "empty_template"}, 400
     try:
         worker.ensure_worker()
-        job_id = worker.enqueue_tasks(payload)
+        # Use global default tear-off delay if configured
+        options = None
+        try:
+            from task_printer.core.config import get_config_path
+            cfg = load_config(get_config_path()) or {}
+            raw = cfg.get("default_tear_delay_seconds", 0)
+            delay = float(raw or 0)
+            if delay < 0:
+                delay = 0.0
+            if delay > 60:
+                delay = 60.0
+            if delay > 0:
+                options = {"tear_delay_seconds": delay}
+        except Exception:
+            options = None
+
+        try:
+            job_id = worker.enqueue_tasks(payload, options=options)
+        except TypeError:
+            # Backward compatibility with tests that patch enqueue_tasks(payload)
+            job_id = worker.enqueue_tasks(payload)
         # Update last_used_at for quick ordering/filtering
         dbh.touch_template_last_used(template_id)
         current_app.logger.info(
@@ -361,7 +381,10 @@ def print_template_route(template_id: int):
         )
         if _wants_json() or request.is_json:
             return {"job_id": job_id}
-        flash(f"Queued print from template. Job: {job_id}", "success")
+        note = ""
+        if options:
+            note = f" Tear-off mode: {options.get('tear_delay_seconds')}s (no cut)."
+        flash(f"Queued print from template. Job: {job_id}.{note}", "success")
         return redirect(url_for("web.index", job=job_id))
     except Exception as e:
         current_app.logger.exception("Error printing template: %s", e)

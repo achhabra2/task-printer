@@ -122,6 +122,19 @@
         <input class="h-4 w-4" type="checkbox" name="print_separators" {% if not config or config.print_separators %}checked{% endif %}>
         Print dashed separators around tasks
       </label>
+
+      <label class="block font-semibold mt-4 mb-1 text-slate-700 dark:text-slate-200">Default tear-off delay (seconds)</label>
+      <input
+        type="number"
+        name="default_tear_delay_seconds"
+        min="0"
+        max="60"
+        step="0.5"
+        value="{{ (config.default_tear_delay_seconds if config and config.default_tear_delay_seconds is not none else '') }}"
+        placeholder="0 (disabled)"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">If set, prints triggered from the Templates page will wait between tasks and not cut. The index page will preload this value but it can be changed per print.</div>
     </div>
 
     <!-- Flair layout tuning -->

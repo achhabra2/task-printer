@@ -71,6 +71,7 @@ Request flow (refactored)
 - Index (`/`):
   - The UI still builds dynamic form fields (now handled by `task_printer.web.routes`).
   - POST enqueues a job against the worker queue and redirects back to index with `?job=<id>` so banner polling can show status.
+  - Optional per-print tear-off mode: a numeric field "Tear-off delay (seconds)" can be provided to disable cutting and add a delay between tasks for manual tear. Leave blank/0 for default behavior.
 - Worker:
   - The worker consumes jobs and prints each task with configured spacing and separators. It handles:
     - Title/subtitle rendering
@@ -88,6 +89,10 @@ Printing details
   - `icon` picks from `static/icons/<key>.(png|jpg|jpeg|gif|bmp)` discovered by `task_printer.core.assets`.
   - `image` uploads are stored under `TASKPRINTER_MEDIA_PATH` and referenced by the worker.
   - `qr` payloads are printed using the ESC/POS driver's QR routines if available, otherwise rendered as an image.
+
+Tear-off mode
+- Per-print: the index page includes a number input "Tear-off delay (seconds)". When > 0, the worker suppresses cuts and sleeps between tasks.
+- Global default: config may include `default_tear_delay_seconds` (0–60). The Templates print route uses this default when printing directly from the Templates page, and the index form preloads this value but it can be overridden at submit time.
 
 Routes (now implemented as blueprints)
 - `GET/POST /` — main UI and job enqueueing (`task_printer.web.routes:web_bp`)
@@ -168,6 +173,9 @@ Dev setup (how to run locally)
   - `install_service.sh` installs a hardened unit that uses `start.sh` and an `/etc/default/taskprinter` env file.
 - Docker:
   - If using USB printers in containers, pass `--device=/dev/bus/usb` or run privileged. Mount `TASKPRINTER_CONFIG_PATH` and `TASKPRINTER_MEDIA_PATH` to preserve config and uploads.
+
+Config keys (selected)
+- `default_tear_delay_seconds`: Optional float (0–60). When set, template prints use this value to enable tear-off mode by default, and the index page preloads it in the tear-off input; users can override per print.
 
 Definition of done for changes
 - No `print()` statements; use `app.logger`.

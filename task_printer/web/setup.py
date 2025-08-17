@@ -18,7 +18,7 @@ from typing import Any, Dict, List
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 
 from task_printer.core.assets import get_available_icons
-from task_printer.core.config import CONFIG_PATH, load_config, save_config
+from task_printer.core.config import CONFIG_PATH, load_config, save_config, get_config_path
 from task_printer.printing.worker import enqueue_test_print, ensure_worker
 
 setup_bp = Blueprint("setup", __name__)
@@ -112,6 +112,17 @@ def setup():
         cut_feed_lines = max(0, min(10, cut_feed_lines))
         print_separators = form.get("print_separators") == "on"
 
+        # Global default tear-off delay (optional)
+        raw_delay = (form.get("default_tear_delay_seconds", "") or "").strip()
+        try:
+            default_tear_delay_seconds = float(raw_delay) if raw_delay != "" else 0.0
+        except Exception:
+            default_tear_delay_seconds = 0.0
+        if default_tear_delay_seconds < 0:
+            default_tear_delay_seconds = 0.0
+        if default_tear_delay_seconds > 60:
+            default_tear_delay_seconds = 60.0
+
         # Flair layout parameters (optional tuning)
         def _to_int(val, default):
             try:
@@ -158,6 +169,7 @@ def setup():
             "printer_profile": printer_profile,
             "cut_feed_lines": cut_feed_lines,
             "print_separators": print_separators,
+            "default_tear_delay_seconds": default_tear_delay_seconds,
             # Flair layout tuning
             "flair_separator_width": flair_separator_width,
             "flair_separator_gap": flair_separator_gap,
@@ -167,14 +179,15 @@ def setup():
             "min_text_width": min_text_width,
         }
 
-        save_config(config)
+        # Persist to the current resolved config path to honor per-test env overrides
+        save_config(config, path=get_config_path())
 
         auto_startup = form.get("auto_startup") == "on"
         # Show loading page which triggers a restart request via JS
         return render_template("loading.html", auto_startup=auto_startup)
 
     # GET: render setup page
-    cfg = load_config()
+    cfg = load_config(get_config_path())
     return render_template(
         "setup.html",
         usb_devices=usb_devices,

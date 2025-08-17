@@ -179,3 +179,23 @@ Tests
 
 Environment
 - New: `TASKPRINTER_DB_PATH` to override DB location.
+
+14) Per‑print Tear‑Off Mode + Optional Global Default
+- Files: `task_printer/printing/worker.py`, `task_printer/web/routes.py`, `templates/index.html`, `task_printer/web/templates.py`, `task_printer/web/setup.py`.
+- Summary: Add a per‑print option to wait between task receipts and suppress cutter commands, and an optional global default.
+
+Web/UI
+- Index (`/`): Adds “Tear‑off delay (seconds)” input. When > 0, the worker sleeps between tasks and skips cutting; default behavior is unchanged when blank/0.
+- Setup (`/setup`): Adds `Default tear‑off delay (seconds)` stored as `default_tear_delay_seconds` in `config.json`.
+- Templates (`/templates/<id>/print`): Uses the global default if set. The Index form preloads this default but it can be overridden per print.
+
+Worker
+- `enqueue_tasks(payload, options=None)` accepts per‑job `options` (currently `tear_delay_seconds`).
+- `print_tasks(..., options=...)` computes `tear_mode` and suppresses `cut()` while sleeping between items.
+- `_print_subtitle_task_item(..., cut=True)` renders feed lines but only calls `cut()` when `cut=True`.
+
+Logging
+- Logs clearly state when tear‑off mode is enabled and sleep durations.
+
+Tests
+- Added unit tests for worker orchestration, index route parsing, setup persistence, and templates printing with default.
