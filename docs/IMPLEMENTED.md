@@ -133,3 +133,49 @@ Tip: When using JSON logs, prefer `journalctl -o json-pretty -u taskprinter.serv
 - Added optional per-task flair: `Icon` or `QR` (besides `None`).
 - Icons are looked up under `static/icons/<key>.png` (e.g., `working.png`, `cleaning.png`, `family.png`, `fitness.png`, `study.png`, `errands.png`). If missing, the app prints a simple placeholder.
 - QR payload length capped via `TASKPRINTER_MAX_QR_LEN` (default 512).
+
+13) Templates persistence (Phase 3)
+- Files: `task_printer/core/db.py`, `task_printer/web/templates.py`, `templates/templates.html`, `templates/index.html`, `task_printer/__init__.py`, `tests/test_templates_persistence.py`
+- Summary: Adds SQLite-backed “Templates” feature to save/load/print grouped tasks (with flair), a templates UI, REST-ish endpoints, and tests.
+
+Storage & DB
+- Engine: SQLite (stdlib `sqlite3`) with PRAGMAs: `foreign_keys=ON`, `journal_mode=WAL`, `synchronous=NORMAL`.
+- Path: `TASKPRINTER_DB_PATH` or `$XDG_DATA_HOME/taskprinter/data.db` or `~/.local/share/taskprinter/data.db`.
+- Schema: `templates`, `sections`, `tasks` with `position` ordering and `ON DELETE CASCADE`. Tracks timestamps: `created_at`, `updated_at`, `last_used_at`.
+- Helper: `task_printer.core.db` exposes `get_db()`, `close_db()`, `init_app()`, CRUD helpers (`create_template`, `get_template`, `list_templates`, `update_template`, `delete_template`, `duplicate_template`, `touch_template_last_used`).
+- Validation mirrors existing limits and rejects control characters.
+
+Routes (blueprint `templates_bp`)
+- `GET /templates` → HTML list (JSON only when explicitly requested via `?format=json` or `Accept: application/json` without `text/html`).
+- `POST /templates` → Create from JSON or form (supports flair icon/QR; image uploads when posted as multipart).
+- `GET /templates/<id>` → Full JSON structure for prefill.
+- `POST /templates/<id>/update` → Replace entire structure.
+- `POST /templates/<id>/delete` → Delete.
+- `POST /templates/<id>/duplicate` → Duplicate (optional `new_name`; auto-suffix on conflicts).
+- `POST /templates/<id>/print` → Queue print using stored data; updates `last_used_at`.
+
+UI
+- New page: `templates/templates.html` to list templates with actions: Load (prefill index), Print Now, Duplicate, Delete.
+- Index integrations (`templates/index.html`):
+  - Added “📚 Templates” link and “💾 Save as Template” button.
+  - Save posts JSON (icon/QR flair preserved; image flair intentionally skipped in JSON flow due to browser file input limitations).
+  - Prefill logic reads a saved template from `localStorage` and rebuilds the dynamic form with flair applied.
+- Content negotiation tweaked to prefer HTML by default on `/templates`.
+
+Worker integration
+- Printing uses existing queue via `worker.ensure_worker()` and `worker.enqueue_tasks(...)`.
+- Stored flair types map to existing print paths (icon/image/QR).
+
+Security & limits
+- CSRF enforced for all POST routes (token read from cookie and sent via header or form).
+- Server-side limits: section/task counts, text/QR length, total character cap; rejects control characters.
+
+Tests
+- `tests/test_templates_persistence.py`:
+  - DB CRUD tests (create/list/get/update/duplicate/delete, ordering and counts).
+  - Route tests for JSON flows and error cases.
+  - Printing path mocked; CSRF token parsed from Set-Cookie.
+- All tests pass alongside existing suite.
+
+Environment
+- New: `TASKPRINTER_DB_PATH` to override DB location.

@@ -1,0 +1,211 @@
+{# ============================================================================
+  Task Printer — Cohesive UI Macros (Tailwind Option A)
+  File: templates/_components.html
+
+  Exposed macros:
+  - _classes(a,b,c,d,e,f)            → Safely join class strings (no varargs)
+  - btn(...)                         → Unified buttons (<a> or</a> <button>)
+  - flash(category, message, ...)    → Single flash message banner
+  - flash_messages(messages)         → Render Flask flashed messages list
+  - card(title, subtitle, actions)   → Card with optional header/actions (use {% call %}..{% endcall %})
+  - topbar(title, actions, toggle)   → Page header with actions and theme toggle
+
+  Notes:
+  - Variants: primary (brand), secondary (slate), danger (red), outline (brand outline), ghost (subtle)
+  - Sizes: sm, md, lg
+  - Dark mode aware via Tailwind dark: utilities
+============================================================================ #}
+
+{# Utility: join truthy class parts safely (no varargs) #}
+{% macro _classes(a='', b='', c='', d='', e='', f='') -%}
+  {%- set parts = [] -%}
+  {%- if a %}{% set parts = parts + [a] %}{% endif -%}
+  {%- if b %}{% set parts = parts + [b] %}{% endif -%}
+  {%- if c %}{% set parts = parts + [c] %}{% endif -%}
+  {%- if d %}{% set parts = parts + [d] %}{% endif -%}
+  {%- if e %}{% set parts = parts + [e] %}{% endif -%}
+  {%- if f %}{% set parts = parts + [f] %}{% endif -%}
+  {{- parts|join(' ') -}}
+{%- endmacro %}
+
+{# Unified Button
+   Params:
+   - label (required)
+   - href → renders <a>, else <button></button>
+   - variant: 'primary' | 'secondary' | 'danger' | 'outline' | 'ghost'
+   - size: 'sm' | 'md' | 'lg'
+   - disabled: bool
+   - extra_classes: string
+   - id, name, type, title: passthrough attributes
+   - icon: optional leading glyph/text (e.g., '🧾')
+   - onclick: JS handler
+   - formaction: for submit buttons
+#}
+{% macro btn(label, href=None, variant='primary', size='md', disabled=False, extra_classes='', id=None, name=None, type=None, title=None, icon=None, onclick=None, formaction=None) -%}
+  {# Variant classes #}
+  {% set v_primary   = "bg-brand text-white hover:bg-brand-dark border border-transparent" %}
+  {% set v_secondary = "bg-slate-600 text-white hover:bg-slate-700 border border-transparent" %}
+  {% set v_danger    = "bg-red-600 text-white hover:bg-red-700 border border-transparent" %}
+  {# Improved outline contrast in dark mode: clearer text and hover #}
+  {% set v_outline   = "border border-brand text-brand hover:bg-blue-50 dark:border-blue-400 dark:text-blue-200 dark:hover:bg-slate-800/60 bg-transparent" %}
+  {% set v_ghost     = "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700 bg-transparent border border-transparent" %}
+
+  {% if variant == 'secondary' %}
+    {% set variant_cls = v_secondary %}
+  {% elif variant == 'danger' %}
+    {% set variant_cls = v_danger %}
+  {% elif variant == 'outline' %}
+    {% set variant_cls = v_outline %}
+  {% elif variant == 'ghost' %}
+    {% set variant_cls = v_ghost %}
+  {% else %}
+    {% set variant_cls = v_primary %}
+  {% endif %}
+
+  {# Size classes #}
+  {% if size == 'sm' %}
+    {% set size_cls = "text-xs px-3 py-1.5" %}
+  {% elif size == 'lg' %}
+    {% set size_cls = "text-base px-4 py-2.5" %}
+  {% else %}
+    {% set size_cls = "text-sm px-3.5 py-2" %}
+  {% endif %}
+
+  {# Common classes #}
+  {% set base = "inline-flex items-center gap-1.5 no-underline select-none transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand dark:focus-visible:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed" %}
+  {% set all = _classes(base, variant_cls, size_cls, extra_classes) %}
+
+  {% if href %}
+    <a href="{{ href }}"
+       class="{{ all }}"
+       {% if title %}title="{{ title }}"{% endif %}
+       {% if id %}id="{{ id }}"{% endif %}
+       {% if onclick %}onclick="{{ onclick }}"{% endif %}
+       role="button"
+       {% if disabled %}aria-disabled="true" tabindex="-1"{% endif %}
+    >
+      {% if icon %}<span aria-hidden="true">{{ icon }}</span>{% endif %}
+      <span>{{ label }}</span>
+    </a>
+  {% else %}
+    {# Default type=button unless explicitly provided #}
+    {% set t = type if type else 'button' %}
+    <button
+      type="{{ t }}"
+      class="{{ all }}"
+      {% if formaction %}formaction="{{ formaction }}"{% endif %}
+      {% if onclick %}onclick="{{ onclick }}"{% endif %}
+      {% if name %}name="{{ name }}"{% endif %}
+      {% if id %}id="{{ id }}"{% endif %}
+      {% if title %}title="{{ title }}"{% endif %}
+      {% if disabled %}disabled{% endif %}
+    >
+      {% if icon %}<span aria-hidden="true">{{ icon }}</span>{% endif %}
+      <span>{{ label }}</span>
+    </button>
+  {% endif %}
+{%- endmacro %}
+
+{# Single flash message #}
+{% macro flash(category='info', message='', dismissible=False) -%}
+  {% if category == 'success' %}
+    {% set color = "bg-green-50 border-green-600 text-green-800 dark:bg-slate-700 dark:text-green-300" %}
+    {% set ico = "✓" %}
+  {% elif category == 'error' %}
+    {% set color = "bg-red-50 border-red-600 text-red-800 dark:bg-slate-700 dark:text-red-300" %}
+    {% set ico = "⛔️" %}
+  {% elif category == 'warning' %}
+    {% set color = "bg-yellow-50 border-yellow-600 text-yellow-800 dark:bg-slate-700 dark:text-yellow-300" %}
+    {% set ico = "⚠️" %}
+  {% else %}
+    {% set color = "bg-slate-100 border-slate-400 text-slate-800 dark:bg-slate-700 dark:text-slate-100" %}
+    {% set ico = "ℹ️" %}
+  {% endif %}
+  <div class="rounded-md border-l-4 p-3 mb-4 {{ color }}" role="alert">
+    <div class="flex items-start gap-2">
+      <span class="mt-0.5" aria-hidden="true">{{ ico }}</span>
+      <div class="flex-1">{{ message }}</div>
+      {% if dismissible %}
+        <span class="text-slate-400 dark:text-slate-300 text-sm">×</span>
+      {% endif %}
+    </div>
+  </div>
+{%- endmacro %}
+
+{# Render flask flashes list (with_categories=True) #}
+{% macro flash_messages(messages) -%}
+  {% if messages %}
+    {% for category, message in messages %}
+      {{ flash(category, message) }}
+    {% endfor %}
+  {% endif %}
+{%- endmacro %}
+
+{# Card with optional header and actions; use with {% call %} body #}
+{% macro card(title=None, subtitle=None, actions=None, classes='', body_classes='') -%}
+  {% set outer = _classes("bg-white dark:bg-slate-800 rounded-2xl shadow-lg overflow-hidden", classes) %}
+  <div class="{{ outer }}">
+    {% if title or actions %}
+      <div class="flex items-center justify-between gap-3 px-5 py-4 bg-slate-50 dark:bg-slate-900/30">
+        <div class="min-w-0">
+          {% if title %}
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100 truncate">{{ title }}</h2>
+          {% endif %}
+          {% if subtitle %}
+            <div class="text-xs text-slate-500 dark:text-slate-300 truncate">{{ subtitle }}</div>
+          {% endif %}
+        </div>
+        {% if actions %}
+          <div class="flex items-center gap-2 flex-wrap">
+            {% for a in actions %}
+              {{ btn(a.get('label',''), href=a.get('href'), variant=a.get('variant','ghost'), size=a.get('size','sm'), icon=a.get('icon')) }}
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+    <div class="{{ _classes('p-5', body_classes) }}">
+      {{ caller() }}
+    </div>
+  </div>
+{%- endmacro %}
+
+{# Top bar with actions and theme toggle #}
+{% macro topbar(title=None, actions=None, show_theme_toggle=True, classes='') -%}
+  <div class="{{ _classes('flex items-center justify-between gap-3 flex-wrap my-4', classes) }}">
+    <div class="flex items-center gap-3">
+      {% if title %}
+        <h1 class="m-0 text-xl font-bold text-slate-900 dark:text-slate-100">{{ title }}</h1>
+      {% endif %}
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      {% if actions %}
+        {% for a in actions %}
+          {{ btn(a.get('label',''), href=a.get('href'), variant=a.get('variant','outline'), size=a.get('size','sm'), icon=a.get('icon')) }}
+        {% endfor %}
+      {% endif %}
+      {% if show_theme_toggle %}
+        {{ btn("🌙 Dark Mode", variant="ghost", size="sm",
+               extra_classes="bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100",
+               id="darkModeBtn", title="Toggle theme") }}
+        <script>
+          (function () {
+            var btn = document.getElementById("darkModeBtn");
+            if (!btn) return;
+            function syncLabel() {
+              var dark = document.documentElement.classList.contains("dark");
+              btn.textContent = dark ? "☀️ Light Mode" : "🌙 Dark Mode";
+            }
+            // Initial label
+            syncLabel();
+            // Click toggles theme then sync text
+            btn.addEventListener("click", function () {
+              if (typeof window.toggleDarkMode === "function") window.toggleDarkMode();
+              setTimeout(syncLabel, 0);
+            });
+          })();
+        </script>
+      {% endif %}
+    </div>
+  </div>
+{%- endmacro %}

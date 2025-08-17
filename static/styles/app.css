@@ -1,0 +1,59 @@
+/* Task Printer — app.css
+   Minimal custom tokens and a few non-utility styles that complement Tailwind.
+
+   Notes:
+   - Tailwind (via CDN for Option A) provides the majority of styling.
+   - We keep a small set of CSS variables for colors and a spinner animation.
+   - Dark mode is applied by toggling the `dark` class on the <html> element.
+*/
+
+/* Theme tokens (light by default) */
+:root {
+  --color-brand: #007bff;
+  --color-brand-dark: #0056b3;
+
+  --surface: #ffffff;
+  --surface-weak: #f5f7fa;
+
+  --text: #111827;        /* gray-900 */
+  --text-muted: #6b7280;  /* gray-500 */
+  --border: #e5e7eb;      /* gray-200 */
+}
+
+/* Dark theme tokens (overrides) */
+html.dark {
+  --color-brand: #0056b3;
+  --color-brand-dark: #003a7a;
+
+  --surface: #0f172a;      /* slate-900 */
+  --surface-weak: #111827; /* gray-900 */
+  --text: #e5e7eb;         /* gray-200 */
+  --text-muted: #9ca3af;   /* gray-400 */
+  --border: #334155;       /* slate-700 */
+}
+
+/* Basic global defaults (kept minimal; Tailwind will handle most) */
+body {
+  background-color: var(--surface-weak);
+  color: var(--text);
+}
+
+/* Monospace helper for IDs/hashes (used in some tables) */
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Spinner (used on loading/restart flows) */
+.spinner {
+  border: 6px solid #f3f3f3;
+  border-top-color: var(--color-brand);
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  animation: tp-spin 1s linear infinite;
+}
+
+@keyframes tp-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

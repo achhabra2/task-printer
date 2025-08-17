@@ -112,6 +112,33 @@ docker run --rm -p 5000:5000 \
   task-printer
 ```
 
+## Templates database and backups
+
+Templates and their sections/tasks are stored in a SQLite database.
+
+- Path precedence:
+  1. `TASKPRINTER_DB_PATH` (env)
+  2. `$XDG_DATA_HOME/taskprinter/data.db`
+  3. `~/.local/share/taskprinter/data.db`
+
+- Docker persistence example:
+
+```bash
+docker run --rm -p 5000:5000 \
+  -e TASKPRINTER_SECRET_KEY=change_me \
+  -e TASKPRINTER_DB_PATH=/data/data.db \
+  -e TASKPRINTER_MEDIA_PATH=/data/media \
+  -v $(pwd)/data:/data \
+  task-printer
+```
+
+- Backups:
+  - Prefer copying the DB while the app is idle, or use `sqlite3`'s `.backup` command for a consistent snapshot.
+  - If you use image flair, also back up `TASKPRINTER_MEDIA_PATH`.
+
+- Restore:
+  - Replace the DB file on disk and restart the app (systemd or `./start.sh`).
+
 Logs: set `TASKPRINTER_JSON_LOGS=true` for JSON logs (better with log drivers).
 
 Fonts: The app requires a TTF font for rendering task text. The Docker image installs DejaVu Sans (`fonts-dejavu-core`). If running outside Docker, ensure a TTF font exists and either:

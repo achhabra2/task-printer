@@ -1,49 +1,42 @@
-{% extends "base.html" %}
-{% block content %}
-<style>
-:root { --setup-max-width: 980px; }
-.button-row { display: flex; gap: 16px; width: 100%; margin-top: 18px; }
-.button-row button { flex: 1; }
-.close-btn { background: #e0e0e0; color: #222; border: none; border-radius: 4px; padding: 12px 0; font-size: 17px; cursor: pointer; transition: background 0.2s; }
-.close-btn:hover { background: #bdbdbd; color: #111; }
-label, .centered-card label { text-align: left; display: block; font-weight: bold; margin-top: 18px; margin-bottom: 6px; }
-input, select { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 4px; font-size: 15px; box-sizing: border-box; margin-bottom: 2px; }
-button { background: #007bff; color: #fff; border: none; border-radius: 4px; padding: 12px 0; font-size: 17px; width: 100%; margin-top: 24px; cursor: pointer; }
-button:hover { background: #0056b3; }
-.help { color: #666; font-size: 0.97em; margin-bottom: 8px; }
-.usb-list, .usb-list form, .usb-list label, .usb-list div { text-align: left !important; }
-.usb-list label, .usb-list div { width: 100%; }
-.auto-startup-row { display: flex; align-items: center; text-align: left; margin-top: 18px !important; margin-left: 0 !important; width: auto !important; justify-content: flex-start !important; align-self: flex-start !important; }
-.auto-startup-row label { font-weight: normal; margin: 0; display: inline; line-height: 1; padding-top: 1px; }
-.auto-startup-row input[type=checkbox] { width: 13px !important; height: 13px !important; min-width: 13px !important; min-height: 13px !important; max-width: 13px !important; max-height: 13px !important; margin-right: 10px; margin-left: 0; flex: 0 0 auto; margin-top: 1px; }
-input[type=radio] { width: 13px !important; height: 13px !important; min-width: 13px !important; min-height: 13px !important; max-width: 13px !important; max-height: 13px !important; margin-right: 8px; vertical-align: middle; }
-.usb-printer-label { font-weight: bold; display: block; margin: 18px 0 18px 0 !important; text-align: left; }
-.preview-card { margin-top: 18px; background:#fafafa; border:1px solid #eee; border-radius:8px; padding:12px; overflow:hidden; }
-.preview-row { display:flex; gap:12px; align-items:center; overflow:auto; }
-.preview-canvas { background:#fff; border:1px dashed #ccc; border-radius:6px; max-width: 100%; height: auto; }
-.preview-controls { display:flex; flex-direction:column; gap:8px; width:100%; }
-.preview-controls .row { display:flex; gap:8px; flex-wrap:wrap; }
-.preview-controls input[type=text] { flex:1; min-width: 260px; }
-.preview-note { color:#777; font-size:12px; margin-top:6px; }
-.centered-card { max-width: var(--setup-max-width); width: 95%; }
-@media (max-width: 1024px) {
-  :root { --setup-max-width: 92vw; }
-  .preview-controls .row { flex-direction: column; }
-}
-</style>
-<div class="centered-card">
-  <h1>⚙️ Task Printer Setup</h1>
-  <form method="POST" style="width:100%;" novalidate>
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label style="text-align:left;">Printer Type:</label>
-    <select name="printer_type" id="printer_type" onchange="onTypeChange()">
-      {% set pt = (config.printer_type if config and config.printer_type else 'usb') %}
-      <option value="usb" {% if pt=='usb' %}selected{% endif %}>USB</option>
-      <option value="network" {% if pt=='network' %}selected{% endif %}>Network</option>
-      <option value="serial" {% if pt=='serial' %}selected{% endif %}>Serial</option>
+{% extends "base.html" %} {% from "_components.html" import topbar, card, btn %} {% block content %}
+<div class="max-w-4xl mx-auto p-5">
+    {{ topbar(
+        title="⚙️ Task Printer Setup",
+        actions=[
+            {'label': '← Back', 'href': '/', 'variant': 'outline'},
+            {'label': '🧾 Jobs', 'href': '/jobs', 'variant': 'outline'},
+            {'label': '📚 Templates', 'href': '/templates', 'variant': 'outline'}
+        ],
+        show_theme_toggle=True
+    ) }}
+
+    <div class="flex items-center justify-end gap-2 my-3">
+        {{ btn("💾 Save & Start", variant="primary", size="sm", type="submit", id="saveStartBtn") }}
+        {{ btn("🧪 Test Print", variant="secondary", size="sm", type="submit", formaction="/setup_test_print", id="testPrintBtn") }}
+    </div>
+
+  {% call card() %}
+  <form method="POST" novalidate class="w-full">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    {# Current printer type in config, default 'usb' #}
+    {% set pt = (config.printer_type if config and config.printer_type else 'usb') %}
+
+    <!-- Printer Type -->
+    <label class="block font-semibold mt-4 mb-1 text-slate-700 dark:text-slate-200">Printer Type:</label>
+    <select
+      name="printer_type"
+      id="printer_type"
+      onchange="onTypeChange()"
+      class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+    >
+      <option value="usb" {% if pt == 'usb' %}selected{% endif %}>USB</option>
+      <option value="network" {% if pt == 'network' %}selected{% endif %}>Network</option>
+      <option value="serial" {% if pt == 'serial' %}selected{% endif %}>Serial</option>
     </select>
 
-    <label style="text-align:left;">Printer Profile (optional):</label>
+    <!-- Printer Profile -->
+    <label class="block font-semibold mt-4 mb-1 text-slate-700 dark:text-slate-200">Printer Profile (optional):</label>
     {% set profiles = [
       ('', 'Generic (default)'),
       ('TM-P80', 'Epson TM-P80'),
@@ -51,286 +44,386 @@ input[type=radio] { width: 13px !important; height: 13px !important; min-width: 
       ('TM-T20III', 'Epson TM-T20III')
     ] %}
     {% set sel_profile = (config.printer_profile if config and config.printer_profile is not none else '') %}
-    <select name="printer_profile" id="printer_profile">
+    <select
+      name="printer_profile"
+      id="printer_profile"
+      class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+    >
       {% for val, label in profiles %}
-        <option value="{{ val }}" {% if sel_profile==val %}selected{% endif %}>{{ label }}</option>
+        <option value="{{ val }}" {% if sel_profile == val %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
-    <label class="usb-printer-label">Select your USB printer:</label>
-    <div id="usb_fields" class="usb-list">
-      {% if usb_devices and usb_devices|length > 0 %}
-        {% for dev in usb_devices %}
-          {% set is_selected = (config and pt=='usb' and ('0x' ~ dev.vendor)|lower == (config.usb_vendor_id|default('')|lower) and ('0x' ~ dev.product)|lower == (config.usb_product_id|default('')|lower)) %}
-          <div style="margin-bottom:16px;display:flex;align-items:center;text-align:left;">
-            <input type="radio" name="usb_device" value="0x{{ dev.vendor }}:0x{{ dev.product }}" {% if is_selected %}checked{% endif %}>
-            <label style="font-weight:normal;{% if not dev.is_printer %}color:#aaa;{% endif %}margin:0;">
-              {{ dev.desc }}
-              {% if not dev.is_printer %}
-                <span style="color:#bbb;font-size:0.97em;">(not a printer)</span>
-              {% endif %}
-              <span style="color:#888;font-size:0.97em;">(Vendor ID: 0x{{ dev.vendor }}, Product ID: 0x{{ dev.product }})</span>
-            </label>
+
+    <!-- USB Fields -->
+    <label class="block font-bold mt-5 mb-2 text-left">Select your USB printer:</label>
+    <div id="usb_fields" class="{% if pt != 'usb' %}hidden{% endif %}">
+      <div class="text-left">
+        {% if usb_devices and usb_devices|length > 0 %}
+          {% for dev in usb_devices %}
+            {% set is_selected = (config and pt == 'usb' and ('0x' ~ dev.vendor)|lower == (config.usb_vendor_id|default('')|lower) and ('0x' ~ dev.product)|lower == (config.usb_product_id|default('')|lower)) %}
+            <div class="mb-3 flex items-start gap-2 text-left">
+              <input class="mt-1.5 h-3.5 w-3.5" type="radio" name="usb_device" value="0x{{ dev.vendor }}:0x{{ dev.product }}" {% if is_selected %}checked{% endif %}>
+              <label class="m-0 font-normal text-slate-800 dark:text-slate-200">
+                {{ dev.desc }}
+                {% if not dev.is_printer %}
+                  <span class="text-slate-400 text-sm">(not a printer)</span>
+                {% endif %}
+                <span class="text-slate-500 text-sm">(Vendor ID: 0x{{ dev.vendor }}, Product ID: 0x{{ dev.product }})</span>
+              </label>
+            </div>
+          {% endfor %}
+          {% set cfg_vendor_no0x = (config.usb_vendor_id|default('')|lower|replace('0x','')) if config else '' %}
+          {% set cfg_product_no0x = (config.usb_product_id|default('')|lower|replace('0x','')) if config else '' %}
+          {% set matched = usb_devices | selectattr('vendor','equalto', cfg_vendor_no0x) | selectattr('product','equalto', cfg_product_no0x) | list %}
+          <div class="mt-2 flex items-center gap-2 text-left">
+            <input class="h-3.5 w-3.5" type="radio" name="usb_device" value="manual" {% if config and pt == 'usb' and (matched|length == 0) %}checked{% endif %}>
+            <label class="font-normal m-0">Other (enter manually below)</label>
           </div>
-        {% endfor %}
-        {% set cfg_vendor_no0x = (config.usb_vendor_id|default('')|lower|replace('0x','')) if config else '' %}
-        {% set cfg_product_no0x = (config.usb_product_id|default('')|lower|replace('0x','')) if config else '' %}
-        {% set matched = usb_devices | selectattr('vendor','equalto', cfg_vendor_no0x) | selectattr('product','equalto', cfg_product_no0x) | list %}
-        <div style="margin-top:7px;display:flex;align-items:center;text-align:left;">
-          <input type="radio" name="usb_device" value="manual" {% if config and pt=='usb' and (matched|length==0) %}checked{% endif %}>
-          <label style="font-weight:normal;margin:0;">Other (enter manually below)</label>
+        {% else %}
+          {% set matched = [] %}
+          <div class="text-slate-600 text-sm my-3">No USB printers detected. Please enter Vendor ID and Product ID manually below.</div>
+        {% endif %}
+
+        <!-- Manual USB fields -->
+        <div id="manual_usb_fields" class="{% if (not usb_devices) or (config and pt == 'usb' and (matched|length == 0)) %}{% else %}hidden{% endif %} mt-3">
+          <label class="block font-semibold mt-3 mb-1 text-slate-700 dark:text-slate-200">USB Vendor ID:</label>
+          <input
+            name="usb_vendor_id"
+            value="{{ (config.usb_vendor_id if config else '0x04b8') }}"
+            class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+          >
+          <div class="text-slate-500 text-sm mb-2">Find this by running <code>lsusb</code> on your Raspberry Pi. Example: <code>ID 04b8:0e28</code> → Vendor ID: <b>0x04b8</b></div>
+
+          <label class="block font-semibold mt-3 mb-1 text-slate-700 dark:text-slate-200">USB Product ID:</label>
+          <input
+            name="usb_product_id"
+            value="{{ (config.usb_product_id if config else '0x0e28') }}"
+            class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+          >
+          <div class="text-slate-500 text-sm">Find this by running <code>lsusb</code>. Example: <code>ID 04b8:0e28</code> → Product ID: <b>0x0e28</b></div>
         </div>
-      {% else %}
-        <div class="help" style="margin:18px 0 10px 0;">No USB printers detected. Please enter Vendor ID and Product ID manually below.</div>
-      {% endif %}
-      <div id="manual_usb_fields" style="display:{{ 'block' if (not usb_devices or (config and pt=='usb' and (matched|length==0))) else 'none' }};">
-        <label>USB Vendor ID:</label>
-        <input name="usb_vendor_id" value="{{ (config.usb_vendor_id if config else '0x04b8') }}">
-        <div class="help">Find this by running <code>lsusb</code> on your Raspberry Pi. Example: <code>ID 04b8:0e28</code> → Vendor ID: <b>0x04b8</b></div>
-        <label>USB Product ID:</label>
-        <input name="usb_product_id" value="{{ (config.usb_product_id if config else '0x0e28') }}">
-        <div class="help">Find this by running <code>lsusb</code>. Example: <code>ID 04b8:0e28</code> → Product ID: <b>0x0e28</b></div>
       </div>
     </div>
-    <div id="formatting_fields" style="margin-top: 12px;">
-      <label>Blank lines before cut (0–10):</label>
-      <input type="number" name="cut_feed_lines" min="0" max="10" value="{{ (config.cut_feed_lines if config and config.cut_feed_lines is not none else 2) }}">
-      <div class="help">Controls extra blank lines added at the end of each receipt before cutting.</div>
-      <label style="display:flex;align-items:center;gap:8px;font-weight:normal;margin-top:10px;">
-        <input type="checkbox" name="print_separators" {% if not config or config.print_separators %}checked{% endif %}> Print dashed separators around tasks
+
+    <!-- Formatting -->
+    <div id="formatting_fields" class="mt-4">
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Blank lines before cut (0–10):</label>
+      <input
+        type="number"
+        name="cut_feed_lines"
+        min="0"
+        max="10"
+        value="{{ (config.cut_feed_lines if config and config.cut_feed_lines is not none else 2) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Controls extra blank lines added at the end of each receipt before cutting.</div>
+
+      <label class="flex items-center gap-2 font-normal mt-2 text-slate-800 dark:text-slate-200">
+        <input class="h-4 w-4" type="checkbox" name="print_separators" {% if not config or config.print_separators %}checked{% endif %}>
+        Print dashed separators around tasks
       </label>
     </div>
 
     <!-- Flair layout tuning -->
-    <div id="flair_fields" style="margin-top: 16px;">
-      <h3 style="margin: 14px 0 8px 0; font-size: 16px; color: #555;">Flair Layout (optional)</h3>
+    <div id="flair_fields" class="mt-4">
+      <h3 class="mt-2 mb-2 text-slate-600 dark:text-slate-300 font-semibold">Flair Layout (optional)</h3>
 
-      <label>Separator</label> width (px):</label>
-      <input type="number" name="flair_separator_width" min="1" max="10" value="{{ (config.flair_separator_width if config and config.flair_separator_width is not none else 3) }}">
-      <div class="help">Thickness of the vertical line between text and icon (1–10).</div>
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Separator width (px):</label>
+      <input
+        type="number"
+        name="flair_separator_width"
+        min="1"
+        max="10"
+        value="{{ (config.flair_separator_width if config and config.flair_separator_width is not none else 3) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Thickness of the vertical line between text and icon (1–10).</div>
 
-      <label>Separator gap (px):</label>
-      <input type="number" name="flair_separator_gap" min="0" max="64" value="{{ (config.flair_separator_gap if config and config.flair_separator_gap is not none else 14) }}">
-      <div class="help">Horizontal padding on both sides of the separator line (0–64).</div>
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Separator gap (px):</label>
+      <input
+        type="number"
+        name="flair_separator_gap"
+        min="0"
+        max="64"
+        value="{{ (config.flair_separator_gap if config and config.flair_separator_gap is not none else 14) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Horizontal padding on both sides of the separator line (0–64).</div>
 
-      <label>Flair column width (px):</label>
-      <input type="number" name="flair_col_width" min="96" max="512" value="{{ (config.flair_col_width if config and config.flair_col_width is not none else 256) }}">
-      <div class="help">Fixed width of the right column that holds the icon (96–512). Default 256.</div>
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Flair column width (px):</label>
+      <input
+        type="number"
+        name="flair_col_width"
+        min="96"
+        max="512"
+        value="{{ (config.flair_col_width if config and config.flair_col_width is not none else 256) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Fixed width of the right column that holds the icon (96–512). Default 256.</div>
 
-      <label>Flair target height (px):</label>
-      <input type="number" name="flair_target_height" min="96" max="512" value="{{ (config.flair_target_height if config and config.flair_target_height is not none else 256) }}">
-      <div class="help">Target height for the icon area; icon is centered within this height (96–512). Default 256.</div>
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Flair target height (px):</label>
+      <input
+        type="number"
+        name="flair_target_height"
+        min="96"
+        max="512"
+        value="{{ (config.flair_target_height if config and config.flair_target_height is not none else 256) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Target height for the icon area; icon is centered within this height (96–512). Default 256.</div>
 
-      <label>Max icon upscale (×):</label>
-      <input type="number" step="0.1" name="flair_icon_scale_max" min="1.0" max="4.0" value="{{ (config.flair_icon_scale_max if config and config.flair_icon_scale_max is not none else 2.0) }}">
-      <div class="help">Limit how much smaller icons may be upscaled (1.0–4.0). Default 2.0.</div>
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Max icon upscale (×):</label>
+      <input
+        type="number"
+        step="0.1"
+        name="flair_icon_scale_max"
+        min="1.0"
+        max="4.0"
+        value="{{ (config.flair_icon_scale_max if config and config.flair_icon_scale_max is not none else 2.0) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Limit how much smaller icons may be upscaled (1.0–4.0). Default 2.0.</div>
 
-      <label>Minimum</label> text width (px):</label>
-      <input type="number" name="min_text_width" min="100" value="{{ (config.min_text_width if config and config.min_text_width is not none else (config.receipt_width * 0.45 if config and config.receipt_width else 230)) }}">
-      <div class="help">Guarantee at least this width for the text column. If the text would be narrower, the icon area shrinks slightly to compensate.</div>
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Minimum text width (px):</label>
+      <input
+        type="number"
+        name="min_text_width"
+        min="100"
+        value="{{ (config.min_text_width if config and config.min_text_width is not none else (config.receipt_width * 0.45 if config and config.receipt_width else 230)) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm">Guarantee at least this width for the text column. If the text would be narrower, the icon area shrinks slightly to compensate.</div>
     </div>
 
     <!-- Live Preview -->
-    <div class="preview-card">
-      <div class="preview-row">
-        <canvas id="flairPreview" class="preview-canvas" width="{{ (config.receipt_width if config and config.receipt_width else 512) }}" height="360" style="width:100%;"></canvas>
+    <div class="mt-5 border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-slate-50 dark:bg-slate-900/40">
+      <div class="overflow-auto">
+        <canvas
+          id="flairPreview"
+          class="bg-white border border-dashed border-slate-300 rounded-md w-full h-auto"
+          width="{{ (config.receipt_width if config and config.receipt_width else 512) }}"
+          height="360"
+        ></canvas>
       </div>
-      <div class="preview-controls">
-        <div class="row">
-          <input type="text" id="previewText" placeholder="Sample task text…" value="Sample Task Text can wrap to multiple lines for preview">
-          <select id="previewIcon">
+      <div class="flex flex-col gap-2 mt-3">
+        <div class="flex gap-2 flex-wrap">
+          <input
+            type="text"
+            id="previewText"
+            placeholder="Sample task text…"
+            value="Sample Task Text can wrap to multiple lines for preview"
+            class="flex-1 min-w-[260px] p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+          >
+          <select
+            id="previewIcon"
+            class="p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+          >
             <option value="">(no icon)</option>
             {% for ic in icons %}
               <option value="{{ url_for('static', filename=ic.filename) }}">{{ ic.name }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="preview-note">Preview is approximate (browser rendering); printer output may vary slightly.</div>
+        <div class="text-slate-500 text-xs">Preview is approximate (browser rendering); printer output may vary slightly.</div>
       </div>
     </div>
 
-    <div id="network_fields" style="display:none;">
-      <label>Network IP:</label> <input name="network_ip" value="{{ (config.network_ip if config else '') }}"><br>
-      <label>Network Port:</label> <input name="network_port" value="{{ (config.network_port if config else '9100') }}"><br>
+    <!-- Network Fields -->
+    <div id="network_fields" class="{% if pt != 'network' %}hidden{% endif %} mt-4">
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Network IP:</label>
+      <input
+        name="network_ip"
+        value="{{ (config.network_ip if config else '') }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <label class="block font-semibold mt-3 mb-1 text-slate-700 dark:text-slate-200">Network Port:</label>
+      <input
+        name="network_port"
+        value="{{ (config.network_port if config else '9100') }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
     </div>
-    <div id="serial_fields" style="display:none;">
-      <label>Serial Port:</label> <input name="serial_port" value="{{ (config.serial_port if config else '') }}"><br>
-      <label>Serial Baudrate:</label> <input name="serial_baudrate" value="{{ (config.serial_baudrate if config else '19200') }}"><br>
+
+    <!-- Serial Fields -->
+    <div id="serial_fields" class="{% if pt != 'serial' %}hidden{% endif %} mt-4">
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Serial Port:</label>
+      <input
+        name="serial_port"
+        value="{{ (config.serial_port if config else '') }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <label class="block font-semibold mt-3 mb-1 text-slate-700 dark:text-slate-200">Serial Baudrate:</label>
+      <input
+        name="serial_baudrate"
+        value="{{ (config.serial_baudrate if config else '19200') }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
     </div>
-    <hr style="width:100%;margin:28px 0 18px 0;border:0;border-top:1.5px solid #eee;">
-    <div class="auto-startup-row"><input type="checkbox" name="auto_startup" id="auto_startup"><label for="auto_startup" style="font-weight:bold;">Enable auto startup on boot (systemd)</label></div>
-    <div class="button-row">
-      <button type="submit" id="saveStartBtn">Save & Start</button>
-      <button type="submit" formaction="/setup_test_print" id="testPrintBtn" style="background:#17a2b8;">🧪 Test Print</button>
+
+    <hr class="my-6 border-t border-slate-200 dark:border-slate-700" />
+
+    <!-- Auto startup -->
+    <div class="flex items-center gap-2 text-left">
+      <input class="h-4 w-4" type="checkbox" name="auto_startup" id="auto_startup">
+      <label for="auto_startup" class="font-bold">Enable auto startup on boot (systemd)</label>
+    </div>
+
+    <!-- Buttons -->
+    <div class="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {{ btn("Save & Start", variant="primary", size="lg", type="submit", id="saveStartBtn") }}
+      {{ btn("🧪 Test Print", variant="secondary", size="lg", type="submit", formaction="/setup_test_print", id="testPrintBtn") }}
       {% if show_close %}
-      <button type="button" class="close-btn" id="closeBtn">Close</button>
+        {{ btn("Close", variant="ghost", size="lg", id="closeBtn") }}
       {% endif %}
     </div>
   </form>
+  {% endcall %}
 </div>
+
 <script>
-console.log('Setup page script loaded');
-function onTypeChange() {
-  var t = document.getElementById('printer_type').value;
-  document.getElementById('usb_fields').style.display = (t==='usb') ? '' : 'none';
-  document.getElementById('network_fields').style.display = (t==='network') ? '' : 'none';
-  document.getElementById('serial_fields').style.display = (t==='serial') ? '' : 'none';
-  console.log('Printer type changed to:', t);
-}
-function onUsbRadioChange() {
-  var manual = document.querySelector('input[name=usb_device][value=manual]');
-  var checked = document.querySelector('input[name=usb_device]:checked');
-  document.getElementById('manual_usb_fields').style.display = (checked && checked.value === 'manual') ? 'block' : 'none';
-  console.log('USB radio changed. Checked:', checked ? checked.value : null);
-}
-function getInt(name, defVal) {
-  var el = document.querySelector('input[name="'+name+'"]');
-  if (!el) return defVal;
-  var v = parseInt(el.value, 10);
-  if (isNaN(v)) return defVal;
-  return v;
-}
-function getFloat(name, defVal) {
-  var el = document.querySelector('input[name="'+name+'"]');
-  if (!el) return defVal;
-  var v = parseFloat(el.value);
-  if (isNaN(v)) return defVal;
-  return v;
-}
-function drawPreview() {
-  var canvas = document.getElementById('flairPreview');
-  if (!canvas) return;
-  var ctx = canvas.getContext('2d');
-  var W = canvas.width, H = canvas.height;
-  // clear
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, W, H);
-  // params
-  var leftMargin = 10, rightMargin = 10, topMargin = 20, extraSpacing = 10;
-  var sepWidth = getInt('flair_separator_width', 3);
-  var gap = getInt('flair_separator_gap', 14);
-  var flairColW = getInt('flair_col_width', 256);
-  var flairTargetH = getInt('flair_target_height', 256);
-  var minTextW = getInt('min_text_width', Math.max(180, Math.floor(W*0.45)));
-  var baseBlock = gap + sepWidth + gap + flairColW;
-  var textW = W - leftMargin - rightMargin - baseBlock;
-  if (textW < minTextW) {
-    var delta = minTextW - textW;
-    flairColW = Math.max(128, flairColW - delta);
-    baseBlock = gap + sepWidth + gap + flairColW;
-    textW = W - leftMargin - rightMargin - baseBlock;
+  // Helpers
+  function showId(id) { var el = document.getElementById(id); if (el) el.classList.remove('hidden'); }
+  function hideId(id) { var el = document.getElementById(id); if (el) el.classList.add('hidden'); }
+
+  // Toggle sections based on printer type
+  function onTypeChange() {
+    var t = document.getElementById('printer_type').value;
+    if (t === 'usb') {
+      showId('usb_fields'); hideId('network_fields'); hideId('serial_fields');
+    } else if (t === 'network') {
+      hideId('usb_fields'); showId('network_fields'); hideId('serial_fields');
+    } else if (t === 'serial') {
+      hideId('usb_fields'); hideId('network_fields'); showId('serial_fields');
+    }
   }
-  // wrap text
-  var text = document.getElementById('previewText').value || '';
-  ctx.fillStyle = '#000';
-  ctx.font = 'bold 20px sans-serif';
-  function measure(str) { return ctx.measureText(str).width; }
-  var words = text.split(/\s+/);
-  var lines = [], cur = '';
-  for (var i=0;i<words.length;i++){
-    var test = cur ? (cur + ' ' + words[i]) : words[i];
-    if (measure(test) <= textW) cur = test;
-    else { if (cur) lines.push(cur); cur = words[i]; }
+
+  function onUsbRadioChange() {
+    var checked = document.querySelector('input[name=usb_device]:checked');
+    if (checked && checked.value === 'manual') showId('manual_usb_fields');
+    else hideId('manual_usb_fields');
   }
-  if (cur) lines.push(cur);
-  var lineH = 28;
-  var textBlockH = topMargin*2 + (lineH + extraSpacing) * Math.max(1, lines.length);
-  var outH = Math.max(textBlockH, topMargin*2 + flairTargetH);
-  // resize canvas height if needed
-  if (H !== outH) { canvas.height = outH; H = outH; ctx = canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#000'; ctx.font = 'bold 20px sans-serif'; }
-  // draw text
-  var y = topMargin + lineH;
-  for (var j=0;j<lines.length;j++){
-    ctx.fillText(lines[j], leftMargin, y);
-    y += lineH + extraSpacing;
-  }
-  // right anchors
-  var flairRight = W - rightMargin;
-  var flairLeft = flairRight - flairColW;
-  // separator
-  var sepX = flairLeft - gap - sepWidth;
-  ctx.fillRect(sepX, topMargin, sepWidth, H - topMargin*2);
-  // icon
-  var iconUrl = document.getElementById('previewIcon').value;
-  if (iconUrl) {
-    var img = new Image();
-    img.onload = function() {
-      // re-draw base
-      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
-      ctx.fillStyle = '#000'; ctx.font = 'bold 20px sans-serif';
-      // text again
-      var y2 = topMargin + lineH;
-      for (var k=0;k<lines.length;k++){ ctx.fillText(lines[k], leftMargin, y2); y2 += lineH + extraSpacing; }
-      // separator
-      ctx.fillRect(sepX, topMargin, sepWidth, H - topMargin*2);
-      // fit icon (respect max upscale like server)
-      var rw = flairColW / img.width;
-      var rh = flairTargetH / img.height;
-      var baseRatio = Math.min(rw, rh);
-      var maxScale = getFloat('flair_icon_scale_max', 2.0);
-      var ratio = Math.min(baseRatio, Math.max(1.0, maxScale));
-      // also allow downscale if needed
-      ratio = Math.min(ratio, baseRatio);
-      var nw = Math.max(1, Math.round(img.width * ratio));
-      var nh = Math.max(1, Math.round(img.height * ratio));
-      var ix = flairLeft + Math.max(0, Math.floor((flairColW - nw)/2));
-      var iy = topMargin + Math.max(0, Math.floor((H - topMargin*2 - nh)/2));
-      ctx.drawImage(img, ix, iy, nw, nh);
-    };
-    img.src = iconUrl;
-  }
-}
-window.onload = function() {
-  console.log('Window loaded');
-  onTypeChange();
-  var radios = document.querySelectorAll('input[name=usb_device]');
-  for (var i=0; i<radios.length; ++i) { radios[i].addEventListener('change', onUsbRadioChange); }
-  onUsbRadioChange();
-  var form = document.querySelector('form[method="POST"]');
-  if (form) {
-    form.addEventListener('submit', function(e) {
-      console.log('Form submit event triggered');
-      try {
-        var formData = new FormData(form);
-        for (var pair of formData.entries()) {
-          console.log('Form data:', pair[0], '=', pair[1]);
-        }
-      } catch (err) {
-        console.error('Error reading form data:', err);
-      }
-    });
-  } else {
-    console.error('POST form not found on setup page');
-  }
-  var saveBtn = document.getElementById('saveStartBtn');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', function(e) {
-      console.log('Save & Start button clicked');
-      var form = document.querySelector('form[method="POST"]');
-      if (form) {
-        form.submit();
-        console.log('Form.submit() called by Save & Start click');
-      }
-    });
-  } else {
-    console.error('Save & Start button not found');
-  }
-  var closeBtn = document.getElementById('closeBtn');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', function(e) {
-      window.location.href = '/';
-    });
-  }
-  // preview bindings
-  ['flair_separator_width','flair_separator_gap','flair_col_width','flair_target_height','min_text_width'].forEach(function(name){
+
+  function getInt(name, defVal) {
     var el = document.querySelector('input[name="'+name+'"]');
-    if (el) el.addEventListener('input', drawPreview);
-  });
-  var t = document.getElementById('previewText');
-  if (t) t.addEventListener('input', drawPreview);
-  var iconSel = document.getElementById('previewIcon');
-  if (iconSel) iconSel.addEventListener('change', drawPreview);
-  // initial draw
-  drawPreview();
-};
+    if (!el) return defVal;
+    var v = parseInt(el.value, 10);
+    if (isNaN(v)) return defVal;
+    return v;
+  }
+  function getFloat(name, defVal) {
+    var el = document.querySelector('input[name="'+name+'"]');
+    if (!el) return defVal;
+    var v = parseFloat(el.value);
+    if (isNaN(v)) return defVal;
+    return v;
+  }
+
+  function drawPreview() {
+    var canvas = document.getElementById('flairPreview');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var W = canvas.width, H = canvas.height;
+    // clear
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, H);
+    // params
+    var leftMargin = 10, rightMargin = 10, topMargin = 20, extraSpacing = 10;
+    var sepWidth = getInt('flair_separator_width', 3);
+    var gap = getInt('flair_separator_gap', 14);
+    var flairColW = getInt('flair_col_width', 256);
+    var flairTargetH = getInt('flair_target_height', 256);
+    var minTextW = getInt('min_text_width', Math.max(180, Math.floor(W*0.45)));
+    var baseBlock = gap + sepWidth + gap + flairColW;
+    var textW = W - leftMargin - rightMargin - baseBlock;
+    if (textW < minTextW) {
+      var delta = minTextW - textW;
+      flairColW = Math.max(128, flairColW - delta);
+      baseBlock = gap + sepWidth + gap + flairColW;
+      textW = W - leftMargin - rightMargin - baseBlock;
+    }
+    // wrap text
+    var text = document.getElementById('previewText').value || '';
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 20px sans-serif';
+    function measure(str) { return ctx.measureText(str).width; }
+    var words = text.split(/\s+/);
+    var lines = [], cur = '';
+    for (var i=0; i<words.length; i++) {
+      var test = cur ? (cur + ' ' + words[i]) : words[i];
+      if (measure(test) <= textW) cur = test;
+      else { if (cur) lines.push(cur); cur = words[i]; }
+    }
+    if (cur) lines.push(cur);
+    var lineH = 28;
+    var textBlockH = topMargin*2 + (lineH + extraSpacing) * Math.max(1, lines.length);
+    var outH = Math.max(textBlockH, topMargin*2 + flairTargetH);
+    // resize canvas height if needed
+    if (H !== outH) { canvas.height = outH; H = outH; ctx = canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#000'; ctx.font = 'bold 20px sans-serif'; }
+    // draw text
+    var y = topMargin + lineH;
+    for (var j=0;j<lines.length;j++){
+      ctx.fillText(lines[j], leftMargin, y);
+      y += lineH + extraSpacing;
+    }
+    // right anchors
+    var flairRight = W - rightMargin;
+    var flairLeft = flairRight - flairColW;
+    // separator
+    var sepX = flairLeft - gap - sepWidth;
+    ctx.fillRect(sepX, topMargin, sepWidth, H - topMargin*2);
+    // icon
+    var iconUrl = document.getElementById('previewIcon').value;
+    if (iconUrl) {
+      var img = new Image();
+      img.onload = function() {
+        // re-draw base
+        ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
+        ctx.fillStyle = '#000'; ctx.font = 'bold 20px sans-serif';
+        // text again
+        var y2 = topMargin + lineH;
+        for (var k=0;k<lines.length;k++){ ctx.fillText(lines[k], leftMargin, y2); y2 += lineH + extraSpacing; }
+        // separator
+        ctx.fillRect(sepX, topMargin, sepWidth, H - topMargin*2);
+        // fit icon (respect max upscale like server)
+        var rw = flairColW / img.width;
+        var rh = flairTargetH / img.height;
+        var baseRatio = Math.min(rw, rh);
+        var maxScale = getFloat('flair_icon_scale_max', 2.0);
+        var ratio = Math.min(baseRatio, Math.max(1.0, maxScale));
+        // also allow downscale if needed
+        ratio = Math.min(ratio, baseRatio);
+        var nw = Math.max(1, Math.round(img.width * ratio));
+        var nh = Math.max(1, Math.round(img.height * ratio));
+        var ix = flairLeft + Math.max(0, Math.floor((flairColW - nw)/2));
+        var iy = topMargin + Math.max(0, Math.floor((H - topMargin*2 - nh)/2));
+        ctx.drawImage(img, ix, iy, nw, nh);
+      };
+      img.src = iconUrl;
+    }
+  }
+
+  window.onload = function() {
+    onTypeChange();
+    var radios = document.querySelectorAll('input[name=usb_device]');
+    for (var i=0; i<radios.length; ++i) { radios[i].addEventListener('change', onUsbRadioChange); }
+    onUsbRadioChange();
+
+    var closeBtn = document.getElementById('closeBtn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function(){ window.location.href = '/'; });
+    }
+
+    // preview bindings
+    ['flair_separator_width','flair_separator_gap','flair_col_width','flair_target_height','min_text_width'].forEach(function(name){
+      var el = document.querySelector('input[name="'+name+'"]');
+      if (el) el.addEventListener('input', drawPreview);
+    });
+    var t = document.getElementById('previewText');
+    if (t) t.addEventListener('input', drawPreview);
+    var iconSel = document.getElementById('previewIcon');
+    if (iconSel) iconSel.addEventListener('change', drawPreview);
+    // initial draw
+    drawPreview();
+  };
 </script>
 {% endblock %}

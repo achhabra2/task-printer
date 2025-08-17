@@ -18,12 +18,14 @@ Responsibilities extracted from the monolithic app:
 import os
 import uuid
 from typing import Any, Dict, List, Optional
+import json
 
 from flask import Blueprint, current_app, flash, g, redirect, render_template, request, url_for
 from werkzeug.utils import secure_filename
 
 from task_printer import csrf
 from task_printer.core.assets import IMAGE_EXTS, get_available_icons, is_supported_image
+from task_printer.core import db as dbh
 from task_printer.core.config import MEDIA_PATH, load_config
 from task_printer.printing.worker import enqueue_tasks, enqueue_test_print, ensure_worker
 
@@ -196,7 +198,23 @@ def index():
 
     # GET
     job_id = request.args.get("job")
-    return render_template("index.html", job_id=job_id, icons=get_available_icons())
+    prefill_id = request.args.get("prefill")
+    prefill_template = None
+    try:
+        if prefill_id is not None:
+            tid = int(prefill_id)
+            t = dbh.get_template(tid)
+            if t:
+                prefill_template = t  # pass as object; template will tojson it
+    except Exception:
+        prefill_template = None
+
+    return render_template(
+        "index.html",
+        job_id=job_id,
+        icons=get_available_icons(),
+        prefill_template=prefill_template,
+    )
 
 
 @csrf.exempt

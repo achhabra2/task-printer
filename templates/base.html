@@ -1,36 +1,59 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Task Printer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body { background: #f5f7fa; font-family: Arial, sans-serif; margin: 0; }
-        .centered-card {
-            background: #fff;
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-            max-width: 440px;
-            margin: 60px auto;
-            padding: 36px 32px 32px 32px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .spinner {
-            border: 6px solid #f3f3f3;
-            border-top: 6px solid #007bff;
-            border-radius: 50%;
-            width: 48px;
-            height: 48px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 18px;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* Add any other shared styles here */
-    </style>
-</head>
-<body>
-    {% block content %}{% endblock %}
-</body>
-</html> 
+    <head>
+        <meta charset="UTF-8" />
+        <title>Task Printer</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                darkMode: "class",
+                theme: {
+                    extend: {
+                        colors: {
+                            brand: { DEFAULT: "#007bff", dark: "#0056b3" },
+                        },
+                    },
+                },
+            };
+        </script>
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='styles/app.css') }}"
+        />
+        <script>
+            (function () {
+                try {
+                    const ls = localStorage.getItem("taskprinter:dark");
+                    const prefers =
+                        window.matchMedia &&
+                        window.matchMedia("(prefers-color-scheme: dark)")
+                            .matches;
+                    const enable = ls === "true" || (ls === null && prefers);
+                    const root = document.documentElement;
+                    if (enable) root.classList.add("dark");
+                    else root.classList.remove("dark");
+                    window.toggleDarkMode = function () {
+                        const now = !root.classList.contains("dark");
+                        if (now) root.classList.add("dark");
+                        else root.classList.remove("dark");
+                        localStorage.setItem(
+                            "taskprinter:dark",
+                            now ? "true" : "false",
+                        );
+                        const btn = document.getElementById("darkModeBtn");
+                        if (btn)
+                            btn.textContent = now
+                                ? "☀️ Light Mode"
+                                : "🌙 Dark Mode";
+                    };
+                } catch (e) {}
+            })();
+        </script>
+    </head>
+    <body
+        class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
+    >
+        {% block content %}{% endblock %}
+    </body>
+</html>

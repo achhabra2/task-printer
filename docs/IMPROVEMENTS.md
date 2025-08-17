@@ -2,6 +2,22 @@
 
 This document outlines potential future improvements, grouped by impact and area.
 
+## New: Templates (Saved task sets)
+- We added a SQLite-backed Templates feature so you can save, list, load, edit, duplicate, delete, and print grouped tasks with optional flair (icon/image/QR).
+- Where to find it:
+  - Main page: “💾 Save as Template” button saves the current form (icon/QR flair included; image flair requires multipart form).
+  - Templates page: “📚 Templates” lists saved templates with actions: Load (prefill main form), Print Now, Duplicate, Delete.
+- Printing uses the existing background worker. Template prints appear in Jobs with normal status updates.
+- Paths and configuration:
+  - Database path: TASKPRINTER_DB_PATH (fallback to XDG data dir).
+  - Media uploads (image flair) are stored under TASKPRINTER_MEDIA_PATH.
+- API endpoints (HTML/JSON):
+  - GET /templates (HTML by default; JSON when Accept: application/json without text/html, or ?format=json)
+  - POST /templates (create), GET /templates/<id> (prefill JSON)
+  - POST /templates/<id>/update, /duplicate, /delete, /print
+- Limits and security: CSRF on all POSTs, server-side limits for sections, tasks, and lengths, and control-character rejection.
+- See docs/IMPLEMENTED.md for the full breakdown.
+
 ## High-Impact / Next Steps
 
 - CSRF protection: Add Flask-WTF and CSRF tokens for `/`, `/setup`, and `/restart`.

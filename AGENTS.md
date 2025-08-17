@@ -37,7 +37,9 @@ Repository map (refactored)
     - `render.py` — text → image rendering helpers, font resolution, image composition
     - `worker.py` — print queue + background worker (`ensure_worker`, queue API)
 - `templates/` — Jinja templates (kept at repo root for easy editing).
+  - `_components.html` — cohesive UI macros for a consistent look-and-feel (see “Frontend & Theming”).
 - `static/` — JS/CSS/icons and other static assets (kept at repo root).
+  - `styles/app.css` — minimal custom tokens (brand colors), spinner animation, and small overrides complementing Tailwind CSS.
 - `docs/` — design docs such as persistence plans and deployment notes.
 - `start.sh`, `install_service.sh`, `Dockerfile`, `requirements.txt` — runtime helpers remain at repo root.
 
@@ -111,6 +113,30 @@ Common pitfalls (post-refactor)
 - Fonts: If fonts are absent, the rendering falls back to Pillow default. For consistent output in Docker or CI, install DejaVu fonts or set `TASKPRINTER_FONT_PATH`.
 - File paths: Templates and static files are served from repo-level `templates/` and `static/` — keep that layout to avoid surprises.
 - Worker concurrency: The worker is a simple background thread/consumer. If you need higher efficiency or persistence, consider the `docs/PERSISTENCE.md` and migrating to a process-based worker (e.g., RQ/Celery) with durable storage.
+
+## Frontend & Theming
+
+We use Tailwind (Option A, CDN) for layout and styling consistency and provide Jinja UI macros to keep the look cohesive across pages.
+
+- Tailwind: loaded via CDN in `templates/base.html` with `darkMode: 'class'`. A minimal `static/styles/app.css` contains tokens (brand, surface) and the spinner animation.
+- Dark mode: toggled by adding/removing the `dark` class on `<html>`. The global `window.toggleDarkMode()` is defined in `base.html` and a label-sync script is embedded by the `topbar` macro. Preference is stored in `localStorage` under `taskprinter:dark` and defaults to OS preference on first load.
+- UI Macros: defined in `templates/_components.html`
+  - `_classes(a,b,c,d,e,f)`: safely join class strings (Jinja has no varargs).
+  - `btn(label, href=None, variant, size, onclick=None, formaction=None, ...)`: unified buttons. Variants: `primary`, `secondary`, `danger`, `outline`, `ghost`. Sizes: `sm`, `md`, `lg`.
+  - `flash(category, message)` / `flash_messages(messages)`: consistent flash banners for `success`, `error`, `warning`, `info`.
+  - `card(title=None, subtitle=None, actions=None)`: card wrapper with optional header/actions. Use with `{% call card(...) %} ... {% endcall %}` for the body.
+  - `topbar(title=None, actions=None, show_theme_toggle=True)`: page-level header. `actions` is a list of `{label, href, variant, icon, size}` dicts; includes a working theme toggle.
+- Usage pattern:
+  - Import: `{% from "_components.html" import topbar, btn, flash_messages, card %}`
+  - Topbar: `{{ topbar(title="My Page", actions=[{'label':'Jobs','href':'/jobs','variant':'outline'}]) }}`
+  - Card: `{% call card(title="Settings") %} ... {% endcall %}`
+  - Button: `{{ btn("Save", variant="primary", type="submit") }}`
+  - Flashes: `{{ flash_messages(get_flashed_messages(with_categories=true)) }}`
+
+Migration notes (Option A):
+- Inline `<style>` blocks have been removed or minimized from templates and replaced with Tailwind classes and macros.
+- `index.html`, `jobs.html`, `templates.html`, `loading.html`, and `setup.html` have been converted to use utilities and macros for cohesive styling.
+- For production builds, consider Option B (Tailwind build step with purge/minify) as described in `docs/THEMING.md`.
 
 Extending the app
 - Adding new HTTP endpoints:
