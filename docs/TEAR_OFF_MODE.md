@@ -90,7 +90,7 @@ Extend the worker to accept per-job options and adjust behavior accordingly.
     - Do NOT call `p.cut()`.
 
 Note:
-- The existing `cut_feed_lines` config continues to control blank lines printed at the end of each item. This is still honored in tear-off mode; users often want some feed space for manual tearing anyway.
+- Spacing in tear-off mode can be tuned separately via the global `tear_feed_lines` config. If unset, it falls back to `cut_feed_lines`. Increase `tear_feed_lines` to compensate for the cutter's built-in pre-feed so spacing matches between modes.
 
 ### Logging
 
@@ -179,7 +179,7 @@ Docs:
 ## Future enhancements
 
 - A separate checkbox “Disable cut for this print” to decouple cut from delay (could enable “no cut, no delay”).
-- Per-job override for “tear feed lines” distinct from `cut_feed_lines`.
+- Per-job override for “tear feed lines” distinct from the global `tear_feed_lines` (future).
 - Persist and remember last-used delay per client (localStorage) for convenience.
 - Surface job options (e.g., `tear_delay_seconds`) in the `/jobs` UI.
 

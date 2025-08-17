@@ -243,13 +243,21 @@ def _print_subtitle_task_item(
     if bool(config.get("print_separators", True)):
         p.text("------------------------------------------------\n")
 
-    # Extra blank lines before cutting, configurable
+    # Extra blank lines before cutting or in tear-off mode, configurable
     try:
-        extra = int(config.get("cut_feed_lines", 2))
+        cut_extra = int(config.get("cut_feed_lines", 2))
     except Exception:
-        extra = 2
-    if extra > 0:
-        p.text("\n" * extra)
+        cut_extra = 2
+
+    # If we're not cutting (tear-off mode), use dedicated config with sensible fallback
+    try:
+        tear_extra = int(config.get("tear_feed_lines", cut_extra))
+    except Exception:
+        tear_extra = cut_extra
+
+    extra_lines = cut_extra if cut else tear_extra
+    if extra_lines > 0:
+        p.text("\n" * extra_lines)
     if cut:
         p.cut()
         logger.info(f"Printed and cut receipt for task {idx}")

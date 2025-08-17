@@ -110,6 +110,156 @@ def resolve_font(
     raise RuntimeError("No TTF font found; install DejaVuSans or set TASKPRINTER_FONT_PATH")
 
 
+def wrap_text_improved(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, max_width: int) -> List[str]:
+    """
+    Improved word-wrapping with better handling of long words and hyphenation.
+    
+    Args:
+        text: The input text to wrap.
+        font: Pillow font used for measurement.
+        max_width: Maximum pixel width available for text.
+
+    Returns:
+        List of wrapped lines.
+    """
+    if not text:
+        return [""]
+
+    # First try standard word wrapping
+    words = text.split()
+    lines: List[str] = []
+    current_line = ""
+
+    for word in words:
+        test_line = current_line + (" " if current_line else "") + word
+        w, _ = _measure_text(font, test_line)
+        
+        if w <= max_width:
+            current_line = test_line
+        else:
+            # If current line has content, save it and start new line
+            if current_line:
+                lines.append(current_line)
+                current_line = word
+                # Check if single word fits
+                w_word, _ = _measure_text(font, word)
+                if w_word > max_width:
+                    # Word is too long, need to break it
+                    lines.extend(_break_long_word(word, font, max_width))
+                    current_line = ""
+            else:
+                # First word is too long, break it
+                lines.extend(_break_long_word(word, font, max_width))
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines or [""]
+
+
+def _break_long_word(word: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, max_width: int) -> List[str]:
+    """Break a long word that doesn't fit on a single line."""
+    if not word:
+        return [""]
+    
+    # Try to break at natural points first (hyphens, underscores)
+    for sep in ['-', '_', '.']:
+        if sep in word and len(word) > 8:  # Only for reasonably long words
+            parts = word.split(sep)
+            if len(parts) > 1:
+                result = []
+                current = ""
+                for i, part in enumerate(parts):
+                    test = current + (sep if current else "") + part
+                    if i < len(parts) - 1:  # Add separator except for last part
+                        test += sep
+                    
+                    w, _ = _measure_text(font, test)
+                    if w <= max_width:
+                        current = test
+                    else:
+                        if current:
+                            result.append(current)
+                        current = part + (sep if i < len(parts) - 1 else "")
+                
+                if current:
+                    result.append(current)
+                return result
+    
+    # If no natural break points, break character by character
+    result = []
+    current = ""
+    for char in word:
+        test = current + char
+        w, _ = _measure_text(font, test)
+        if w <= max_width:
+            current = test
+        else:
+            if current:
+                result.append(current)
+            current = char
+    
+    if current:
+        result.append(current)
+    
+    return result or [""]
+
+
+def find_optimal_font_size(text: str, config: Optional[Mapping[str, object]], max_width: int, target_lines: int = 3) -> tuple[ImageFont.FreeTypeFont | ImageFont.ImageFont, int]:
+    """
+    Find the optimal font size that fits the text nicely within the given constraints.
+    
+    Args:
+        text: The text to fit
+        config: Configuration mapping
+        max_width: Maximum width for text
+        target_lines: Preferred number of lines (will try to get close to this)
+        
+    Returns:
+        Tuple of (font, final_font_size)
+    """
+    if not config:
+        config = {}
+    
+    # Get base font size and limits
+    base_font_size = int(config.get("task_font_size", 72))
+    min_font_size = int(config.get("min_font_size", 32))
+    max_font_size = int(config.get("max_font_size", min(96, base_font_size + 24)))
+    
+    # Start with base size and adjust
+    best_font = None
+    best_size = base_font_size
+    best_lines = float('inf')
+    
+    # Try different font sizes
+    for font_size in range(max_font_size, min_font_size - 1, -4):  # Step down by 4
+        try:
+            font = resolve_font(config, font_size)
+            lines = wrap_text_improved(text, font, max_width)
+            line_count = len(lines)
+            
+            # Check if text actually fits reasonably
+            if line_count <= 6:  # Don't allow too many lines
+                if best_font is None or line_count < best_lines or (line_count == best_lines and font_size > best_size):
+                    best_font = font
+                    best_size = font_size
+                    best_lines = line_count
+                    
+                # If we hit target lines exactly with a decent size, use it
+                if line_count == target_lines and font_size >= min_font_size + 8:
+                    break
+                    
+        except Exception:
+            continue
+    
+    # Fallback to base font if nothing worked
+    if best_font is None:
+        best_font = resolve_font(config, base_font_size)
+        best_size = base_font_size
+    
+    return best_font, best_size
+
+
 def wrap_text(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, max_width: int) -> List[str]:
     """
     Greedy word-wrapping for a given pixel width. Uses font.getbbox to measure width.
@@ -175,22 +325,31 @@ def render_large_text_image(text: str, config: Optional[Mapping[str, object]] = 
     except Exception:
         font_size = 72
 
-    font = resolve_font(cfg, font_size)
-
-    # Margins and spacing
-    left_margin = 0
-    right_margin = 0
-    top_margin = 10
+    # Margins and spacing with safety margins for printers
+    left_margin = int(cfg.get("print_left_margin", 16))  # Safety margin for printer
+    right_margin = int(cfg.get("print_right_margin", 16))  # Safety margin for printer
+    top_margin = int(cfg.get("print_top_margin", 12))
+    bottom_margin = int(cfg.get("print_bottom_margin", 16))  # Extra space at bottom
     extra_spacing = 10
 
     max_text_width = max(1, width - (left_margin + right_margin))
-    lines = wrap_text(text or "", font, max_text_width)
+    
+    # Use dynamic font sizing if enabled
+    use_dynamic_sizing = cfg.get("enable_dynamic_font_sizing", True)
+    if use_dynamic_sizing:
+        font, actual_font_size = find_optimal_font_size(text or "", cfg, max_text_width)
+        logger.debug(f"Dynamic font sizing: {font_size} -> {actual_font_size}")
+    else:
+        font = resolve_font(cfg, font_size)
+        actual_font_size = font_size
+
+    lines = wrap_text_improved(text or "", font, max_text_width)
 
     # Derive line height from bounding box of a representative glyph
     _, line_height = _measure_text(font, "A")
     line_height = max(1, line_height)
 
-    img_height = top_margin * 2 + (line_height + extra_spacing) * len(lines)
+    img_height = top_margin + bottom_margin + (line_height + extra_spacing) * len(lines)
     img = Image.new("L", (int(width), int(img_height)), 255)
     draw = ImageDraw.Draw(img)
 
@@ -238,7 +397,6 @@ def render_task_with_flair_image(
         font_size = int(cfg.get("task_font_size", 72))  # type: ignore[arg-type]
     except Exception:
         font_size = 72
-    font = resolve_font(cfg, font_size)
 
     # Load flair image (path or PIL Image)
     try:
@@ -250,10 +408,11 @@ def render_task_with_flair_image(
         # If flair loading fails, fall back to text-only rendering.
         return render_large_text_image(text, cfg)
 
-    # Layout constants
-    left_margin = 0
-    right_margin = 0
-    top_margin = 10
+    # Layout constants with safety margins for printers
+    left_margin = int(cfg.get("print_left_margin", 16))  # Safety margin for printer
+    right_margin = int(cfg.get("print_right_margin", 16))  # Safety margin for printer
+    top_margin = int(cfg.get("print_top_margin", 12))
+    bottom_margin = int(cfg.get("print_bottom_margin", 16))  # Extra space at bottom
     extra_spacing = 10
 
     # Separator and gaps (configurable)
@@ -296,11 +455,23 @@ def render_task_with_flair_image(
     if text_col_width <= 0 or flair_content_target <= 0:
         return render_large_text_image(text, cfg)
 
-    # Wrap text for the left column
-    lines = wrap_text(text or "", font, text_col_width)
+    # Resolve font with dynamic sizing for the text column
+    use_dynamic_sizing = cfg.get("enable_dynamic_font_sizing", True)
+    if use_dynamic_sizing:
+        text_safety_margin = int(cfg.get("text_safety_margin", 8))
+        safe_text_width = max(1, text_col_width - text_safety_margin)
+        font, actual_font_size = find_optimal_font_size(text or "", cfg, safe_text_width)
+        logger.debug(f"Dynamic font sizing for flair: {font_size} -> {actual_font_size}")
+    else:
+        font = resolve_font(cfg, font_size)
+        text_safety_margin = int(cfg.get("text_safety_margin", 8))
+        safe_text_width = max(1, text_col_width - text_safety_margin)
+
+    # Wrap text for the left column with more conservative width calculation
+    lines = wrap_text_improved(text or "", font, safe_text_width)
     _, line_height = _measure_text(font, "A")
     line_height = max(1, line_height)
-    text_block_height = top_margin * 2 + (line_height + extra_spacing) * len(lines)
+    text_block_height = top_margin + bottom_margin + (line_height + extra_spacing) * len(lines)
 
     # Scale flair image to fit the fixed right column content area
     fw, fh = max(1, flair_img.width), max(1, flair_img.height)
@@ -324,7 +495,7 @@ def render_task_with_flair_image(
         flair_img = flair_img.resize((new_w, new_h), Image.LANCZOS)
 
     # Final canvas height is based on text height vs a fixed flair target area
-    flair_total_h = top_margin * 2 + flair_target_height
+    flair_total_h = top_margin + bottom_margin + flair_target_height
     out_h = max(text_block_height, flair_total_h)
 
     # Compose canvas
@@ -356,13 +527,13 @@ def render_task_with_flair_image(
         out_h,
     )
     draw.rectangle(
-        [int(sep_x_left), top_margin, int(sep_x_left + sep_width - 1), out_h - top_margin],
+        [int(sep_x_left), top_margin, int(sep_x_left + sep_width - 1), out_h - bottom_margin],
         fill=0,
     )
 
     # Paste flair image centered within the right content area, vertically centered in available space
     flair_x = int(flair_left + max(0, (flair_content_target - new_w) // 2))
-    flair_y = int(top_margin + max(0, (out_h - (top_margin * 2) - new_h) // 2))
+    flair_y = int(top_margin + max(0, (out_h - (top_margin + bottom_margin) - new_h) // 2))
     # Clamp paste position to canvas bounds
     flair_x = max(0, min(flair_x, width - new_w))
     flair_y = max(0, min(flair_y, out_h - new_h))

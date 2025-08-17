@@ -126,6 +126,13 @@ def setup():
         except ValueError:
             cut_feed_lines = 2
         cut_feed_lines = max(0, min(10, cut_feed_lines))
+
+        # Separate feed lines to use when cutting is disabled (tear-off mode)
+        try:
+            tear_feed_lines = int(form.get("tear_feed_lines", str(cut_feed_lines)))
+        except ValueError:
+            tear_feed_lines = cut_feed_lines
+        tear_feed_lines = max(0, min(10, tear_feed_lines))
         print_separators = form.get("print_separators") == "on"
 
         # Global default tear-off delay (optional)
@@ -166,6 +173,35 @@ def setup():
         min_text_width = _to_int(form.get("min_text_width", str(default_min_text)), default_min_text)
         min_text_width = max(100, min(receipt_width - 100, min_text_width))
 
+        # Print margins (new anti-cutoff settings)
+        print_left_margin = _to_int(form.get("print_left_margin", "16"), 16)
+        print_left_margin = max(0, min(50, print_left_margin))
+
+        print_right_margin = _to_int(form.get("print_right_margin", "16"), 16)
+        print_right_margin = max(0, min(50, print_right_margin))
+
+        print_top_margin = _to_int(form.get("print_top_margin", "12"), 12)
+        print_top_margin = max(0, min(50, print_top_margin))
+
+        print_bottom_margin = _to_int(form.get("print_bottom_margin", "16"), 16)
+        print_bottom_margin = max(0, min(50, print_bottom_margin))
+
+        text_safety_margin = _to_int(form.get("text_safety_margin", "8"), 8)
+        text_safety_margin = max(0, min(20, text_safety_margin))
+
+        # Dynamic font sizing settings
+        enable_dynamic_font_sizing = form.get("enable_dynamic_font_sizing") == "on"
+        
+        min_font_size = _to_int(form.get("min_font_size", "32"), 32)
+        min_font_size = max(16, min(96, min_font_size))
+        
+        max_font_size = _to_int(form.get("max_font_size", "96"), 96)
+        max_font_size = max(32, min(128, max_font_size))
+        
+        # Ensure max >= min
+        if max_font_size < min_font_size:
+            max_font_size = min_font_size + 8
+
         config = {
             "printer_type": printer_type,
             "usb_vendor_id": usb_vendor_id,
@@ -178,6 +214,7 @@ def setup():
             "task_font_size": task_font_size,
             "printer_profile": printer_profile,
             "cut_feed_lines": cut_feed_lines,
+            "tear_feed_lines": tear_feed_lines,
             "print_separators": print_separators,
             "default_tear_delay_seconds": default_tear_delay_seconds,
             # Flair layout tuning
@@ -187,6 +224,16 @@ def setup():
             "flair_target_height": flair_target_height,
             "flair_icon_scale_max": flair_icon_scale_max,
             "min_text_width": min_text_width,
+            # Print margins (anti-cutoff)
+            "print_left_margin": print_left_margin,
+            "print_right_margin": print_right_margin,
+            "print_top_margin": print_top_margin,
+            "print_bottom_margin": print_bottom_margin,
+            "text_safety_margin": text_safety_margin,
+            # Dynamic font sizing
+            "enable_dynamic_font_sizing": enable_dynamic_font_sizing,
+            "min_font_size": min_font_size,
+            "max_font_size": max_font_size,
         }
 
         # Persist to the current resolved config path to honor per-test env overrides

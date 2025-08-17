@@ -130,6 +130,20 @@
       >
       <div class="text-slate-500 text-sm mb-2">Controls extra blank lines added at the end of each receipt before cutting.</div>
 
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Blank lines in tear-off mode (0–10):</label>
+      <input
+        type="number"
+        name="tear_feed_lines"
+        min="0"
+        max="10"
+        value="{{ (
+          config.tear_feed_lines if config and (config.tear_feed_lines is not none) 
+          else (config.cut_feed_lines if config and (config.cut_feed_lines is not none) else 2)
+        ) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">When cutting is disabled (tear-off mode), add this many blank lines after each item. Increase to compensate for the cutter’s built-in pre-feed so spacing matches.</div>
+
       <label class="flex items-center gap-2 font-normal mt-2 text-slate-800 dark:text-slate-200">
         <input class="h-4 w-4" type="checkbox" name="print_separators" {% if not config or config.print_separators %}checked{% endif %}>
         Print dashed separators around tasks
@@ -218,6 +232,107 @@
         class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
       >
       <div class="text-slate-500 text-sm">Guarantee at least this width for the text column. If the text would be narrower, the icon area shrinks slightly to compensate.</div>
+    </div>
+
+    <!-- Print Margins (new section) -->
+    <div class="mt-4">
+      <h3 class="mt-2 mb-2 text-slate-600 dark:text-slate-300 font-semibold">Print Margins (anti-cutoff)</h3>
+      
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Left margin (px):</label>
+      <input
+        type="number"
+        name="print_left_margin"
+        min="0"
+        max="50"
+        value="{{ (config.print_left_margin if config and config.print_left_margin is not none else 16) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Left safety margin to prevent text cutoff (0–50). Default 16.</div>
+
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Right margin (px):</label>
+      <input
+        type="number"
+        name="print_right_margin"
+        min="0"
+        max="50"
+        value="{{ (config.print_right_margin if config and config.print_right_margin is not none else 16) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Right safety margin to prevent text cutoff (0–50). Default 16.</div>
+
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Top margin (px):</label>
+      <input
+        type="number"
+        name="print_top_margin"
+        min="0"
+        max="50"
+        value="{{ (config.print_top_margin if config and config.print_top_margin is not none else 12) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Top margin (0–50). Default 12.</div>
+
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Bottom margin (px):</label>
+      <input
+        type="number"
+        name="print_bottom_margin"
+        min="0"
+        max="50"
+        value="{{ (config.print_bottom_margin if config and config.print_bottom_margin is not none else 16) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Bottom margin to prevent last line cutoff (0–50). Default 16.</div>
+
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Text safety margin (px):</label>
+      <input
+        type="number"
+        name="text_safety_margin"
+        min="0"
+        max="20"
+        value="{{ (config.text_safety_margin if config and config.text_safety_margin is not none else 8) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Additional text width reduction to prevent wrapping edge cases (0–20). Default 8.</div>
+    </div>
+
+    <!-- Dynamic Font Sizing (new section) -->
+    <div class="mt-4">
+      <h3 class="mt-2 mb-2 text-slate-600 dark:text-slate-300 font-semibold">Dynamic Font Sizing</h3>
+      
+      <div class="flex items-center gap-2 mb-3">
+        <input 
+          type="checkbox" 
+          name="enable_dynamic_font_sizing" 
+          id="enable_dynamic_font_sizing"
+          {{ 'checked' if config and config.enable_dynamic_font_sizing is not false else 'checked' }}
+          class="h-4 w-4"
+        >
+        <label for="enable_dynamic_font_sizing" class="font-semibold text-slate-700 dark:text-slate-200">
+          Enable automatic font size adjustment
+        </label>
+      </div>
+      <div class="text-slate-500 text-sm mb-3">Automatically adjusts font size to fit text better and reduce cutoff. Enabled by default.</div>
+
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Minimum font size (px):</label>
+      <input
+        type="number"
+        name="min_font_size"
+        min="16"
+        max="96"
+        value="{{ (config.min_font_size if config and config.min_font_size is not none else 32) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Smallest font size allowed when auto-sizing (16–96). Default 32.</div>
+
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Maximum font size (px):</label>
+      <input
+        type="number"
+        name="max_font_size"
+        min="32"
+        max="128"
+        value="{{ (config.max_font_size if config and config.max_font_size is not none else 96) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Largest font size allowed when auto-sizing (32–128). Default 96.</div>
     </div>
 
     <!-- Live Preview -->
@@ -355,8 +470,13 @@
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, W, H);
     
-    // Layout constants (match server values)
-    var leftMargin = 10, rightMargin = 10, topMargin = 20, extraSpacing = 10;
+    // Layout constants (match server values with new margin system)
+    var leftMargin = getInt('print_left_margin', 16);
+    var rightMargin = getInt('print_right_margin', 16);
+    var topMargin = getInt('print_top_margin', 12);
+    var bottomMargin = getInt('print_bottom_margin', 16);
+    var textSafetyMargin = getInt('text_safety_margin', 8);
+    var extraSpacing = 10;
     var sepWidth = getInt('flair_separator_width', 3);
     var gapSep = getInt('flair_separator_gap', 14);
     var gapBeforeSep = gapSep;
@@ -383,18 +503,21 @@
       flairContentTarget = Math.max(flairContentTarget, 1);
     }
     
-    // Wrap text using adjusted text width
+    // Wrap text using adjusted text width with safety margin
     var text = document.getElementById('previewText').value || '';
     ctx.fillStyle = '#000';
     ctx.font = 'bold 20px sans-serif';
     
     function measure(str) { return ctx.measureText(str).width; }
     
+    // Apply text safety margin to prevent edge cases
+    var safeTextWidth = Math.max(1, textColWidth - textSafetyMargin);
+    
     var words = text.split(/\s+/);
     var lines = [], cur = '';
     for (var i = 0; i < words.length; i++) {
       var test = cur ? (cur + ' ' + words[i]) : words[i];
-      if (measure(test) <= textColWidth) {
+      if (measure(test) <= safeTextWidth) {
         cur = test;
       } else {
         if (cur) lines.push(cur);
@@ -404,8 +527,8 @@
     if (cur) lines.push(cur);
     
     var lineH = 28;
-    var textBlockH = topMargin * 2 + (lineH + extraSpacing) * Math.max(1, lines.length);
-    var flairTotalH = topMargin * 2 + flairTargetH;
+    var textBlockH = topMargin + bottomMargin + (lineH + extraSpacing) * Math.max(1, lines.length);
+    var flairTotalH = topMargin + bottomMargin + flairTargetH;
     var outH = Math.max(textBlockH, flairTotalH);
     
     // Resize canvas if needed
@@ -433,7 +556,7 @@
     // Draw separator (match server positioning)
     var sepXLeft = flairLeft - gapBeforeSep - sepWidth;
     sepXLeft = Math.max(leftMargin, Math.min(sepXLeft, W - rightMargin - sepWidth));
-    ctx.fillRect(sepXLeft, topMargin, sepWidth, H - topMargin * 2);
+    ctx.fillRect(sepXLeft, topMargin, sepWidth, H - topMargin - bottomMargin);
     
     // Draw icon if selected
     var iconUrl = document.getElementById('previewIcon').value;
@@ -471,7 +594,7 @@
         
         // Center flair in content area (match server centering)
         var flairX = flairLeft + Math.max(0, Math.floor((flairContentTarget - newW) / 2));
-        var flairY = topMargin + Math.max(0, Math.floor((H - topMargin * 2 - newH) / 2));
+        var flairY = topMargin + Math.max(0, Math.floor((H - topMargin - bottomMargin - newH) / 2));
         
         // Clamp to canvas bounds
         flairX = Math.max(0, Math.min(flairX, W - newW));
@@ -495,10 +618,12 @@
     }
 
     // preview bindings
-    ['receipt_width','flair_separator_width','flair_separator_gap','flair_col_width','flair_target_height','min_text_width'].forEach(function(name){
+    ['receipt_width','flair_separator_width','flair_separator_gap','flair_col_width','flair_target_height','min_text_width','print_left_margin','print_right_margin','print_top_margin','print_bottom_margin','text_safety_margin','min_font_size','max_font_size'].forEach(function(name){
       var el = document.querySelector('input[name="'+name+'"]');
       if (el) el.addEventListener('input', drawPreview);
     });
+    var dynamicSizing = document.querySelector('input[name="enable_dynamic_font_sizing"]');
+    if (dynamicSizing) dynamicSizing.addEventListener('change', drawPreview);
     var t = document.getElementById('previewText');
     if (t) t.addEventListener('input', drawPreview);
     var iconSel = document.getElementById('previewIcon');
