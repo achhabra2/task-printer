@@ -157,13 +157,15 @@ flash_messages, card, flash %} {% block content %}
                           <option value="qr" {% if ftype=='qr' %}selected{% endif %}>QR</option>
                         </select>
                         <div class="flair-icon-picker {% if ftype!='icon' %}hidden{% endif %}">
-                          {% for ic in icons %}
-                          <label class="inline-flex items-center gap-1.5 mr-2 cursor-pointer">
-                            <input type="radio" name="flair_icon_{{ i }}_{{ j }}" value="{{ ic.name }}" {% if ftype=='icon' and fval and ic.name == fval %}checked{% endif %}>
-                            <img src="{{ url_for('static', filename=ic.filename) }}" alt="{{ ic.name }}" class="w-5 h-5 object-contain rounded bg-white" onerror="this.style.display='none'">
-                            <span class="capitalize">{{ ic.name }}</span>
-                          </label>
-                          {% endfor %}
+                          <div class="flex flex-wrap gap-3 mt-2 p-3 bg-gray-50 dark:bg-slate-700 rounded-md border">
+                            {% for ic in icons %}
+                            <label class="flex flex-col items-center gap-1.5 p-2 cursor-pointer hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors min-w-[4rem] has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30">
+                              <input type="radio" name="flair_icon_{{ i }}_{{ j }}" value="{{ ic.name }}" {% if ftype=='icon' and fval and ic.name == fval %}checked{% endif %} class="peer sr-only">
+                              <img src="{{ url_for('static', filename=ic.filename) }}" alt="{{ ic.name }}" class="w-8 h-8 object-contain rounded bg-white shadow-sm border-2 border-transparent peer-checked:border-blue-500" onerror="this.style.display='none'">
+                              <span class="capitalize text-xs text-center leading-tight peer-checked:text-blue-600 dark:peer-checked:text-blue-300 peer-checked:font-semibold">{{ ic.name }}</span>
+                            </label>
+                            {% endfor %}
+                          </div>
                         </div>
                         <input type="file" name="flair_image_{{ i }}_{{ j }}" class="flair-image {% if ftype!='image' %}hidden{% endif %}" accept="image/*">
                         <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
@@ -194,13 +196,15 @@ flash_messages, card, flash %} {% block content %}
                           <option value="qr">QR</option>
                         </select>
                         <div class="flair-icon-picker hidden">
-                          {% for ic in icons %}
-                          <label class="inline-flex items-center gap-1.5 mr-2 cursor-pointer">
-                            <input type="radio" name="flair_icon_1_1" value="{{ ic.name }}">
-                            <img src="{{ url_for('static', filename=ic.filename) }}" alt="{{ ic.name }}" class="w-5 h-5 object-contain rounded bg-white" onerror="this.style.display='none'">
-                            <span class="capitalize">{{ ic.name }}</span>
-                          </label>
-                          {% endfor %}
+                          <div class="flex flex-wrap gap-3 mt-2 p-3 bg-gray-50 dark:bg-slate-700 rounded-md border">
+                            {% for ic in icons %}
+                            <label class="flex flex-col items-center gap-1.5 p-2 cursor-pointer hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors min-w-[4rem] has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30">
+                              <input type="radio" name="flair_icon_1_1" value="{{ ic.name }}" class="peer sr-only">
+                              <img src="{{ url_for('static', filename=ic.filename) }}" alt="{{ ic.name }}" class="w-8 h-8 object-contain rounded bg-white shadow-sm border-2 border-transparent peer-checked:border-blue-500" onerror="this.style.display='none'">
+                              <span class="capitalize text-xs text-center leading-tight peer-checked:text-blue-600 dark:peer-checked:text-blue-300 peer-checked:font-semibold">{{ ic.name }}</span>
+                            </label>
+                            {% endfor %}
+                          </div>
                         </div>
                         <input type="file" name="flair_image_1_1" class="flair-image hidden" accept="image/*">
                         <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
@@ -293,7 +297,7 @@ flash_messages, card, flash %} {% block content %}
               <option value="image">Image</option>
               <option value="qr">QR</option>
             </select>
-            <div class="flair-icon-picker hidden">${buildIconPickerHtml(sectionCount, 1)}</div>
+            <div class="flair-icon-picker hidden"><div class="flex flex-wrap gap-3 mt-2 p-3 bg-gray-50 dark:bg-slate-700 rounded-md border">${buildIconPickerHtml(sectionCount, 1)}</div></div>
             <input type="file" name="flair_image_${sectionCount}_1" class="flair-image hidden" accept="image/*">
             <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
             <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
@@ -336,7 +340,7 @@ flash_messages, card, flash %} {% block content %}
           <option value="image">Image</option>
           <option value="qr">QR</option>
         </select>
-        <div class="flair-icon-picker hidden">${buildIconPickerHtml(sectionId, taskNumber)}</div>
+        <div class="flair-icon-picker hidden"><div class="flex flex-wrap gap-3 mt-2 p-3 bg-gray-50 dark:bg-slate-700 rounded-md border">${buildIconPickerHtml(sectionId, taskNumber)}</div></div>
         <input type="file" name="flair_image_${sectionId}_${taskNumber}" class="flair-image hidden" accept="image/*">
         <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
         <input type="text" name="flair_qr_${sectionId}_${taskNumber}" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
@@ -350,6 +354,14 @@ flash_messages, card, flash %} {% block content %}
       const taskDiv = btn.parentElement;
       const taskContainer = taskDiv.parentElement;
       const sectionDiv = taskContainer.closest('.subtitle-section');
+      
+      // Find the corresponding flair row and remove it too
+      const taskIndex = Array.from(taskContainer.querySelectorAll('.task-input')).indexOf(taskDiv);
+      const flairRows = taskContainer.querySelectorAll('.flair-row');
+      if (flairRows[taskIndex]) {
+        flairRows[taskIndex].remove();
+      }
+      
       taskDiv.remove();
 
       // If no tasks remain, remove entire subtitle section
@@ -382,7 +394,7 @@ flash_messages, card, flash %} {% block content %}
                   <option value="image">Image</option>
                   <option value="qr">QR</option>
                 </select>
-                <div class="flair-icon-picker hidden">${pickerInit}</div>
+                <div class="flair-icon-picker hidden"><div class="flex flex-wrap gap-3 mt-2 p-3 bg-gray-50 dark:bg-slate-700 rounded-md border">${pickerInit}</div></div>
                 <input type="file" name="flair_image_${sectionCount}_1" class="flair-image hidden" accept="image/*">
                 <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
                 <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
@@ -415,6 +427,11 @@ flash_messages, card, flash %} {% block content %}
         fr.querySelectorAll('select, input').forEach(el => {
           if (el.name) el.name = el.name.replace(/^(flair_(?:type|icon|qr|image)_\d+_)(\d+)$/, `$1${newNum}`);
         });
+        // Reset flair picker state to ensure it's properly hidden
+        const flairSelect = fr.querySelector('select[name^="flair_type_"]');
+        if (flairSelect && flairSelect.value === 'none') {
+          onFlairTypeChange(flairSelect);
+        }
       });
 
       updateRemoveButtons(taskContainer);
@@ -695,10 +712,10 @@ flash_messages, card, flash %} {% block content %}
     function buildIconPickerHtml(sectionId, taskNumber) {
       if (!ICONS || ICONS.length === 0) return '<em class="text-slate-500">No icons available</em>';
       return ICONS.map(ic => `
-        <label class="inline-flex items-center gap-1.5 mr-2 cursor-pointer">
-          <input type="radio" name="flair_icon_${sectionId}_${taskNumber}" value="${ic.name}">
-          <img src="${ic.url}" alt="${ic.name}" class="w-5 h-5 object-contain rounded bg-white" onerror="this.style.display='none'">
-          <span class="capitalize">${ic.name}</span>
+        <label class="flex flex-col items-center gap-1.5 p-2 cursor-pointer hover:bg-white dark:hover:bg-slate-600 rounded-md transition-colors min-w-[4rem] has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30">
+          <input type="radio" name="flair_icon_${sectionId}_${taskNumber}" value="${ic.name}" class="peer sr-only">
+          <img src="${ic.url}" alt="${ic.name}" class="w-8 h-8 object-contain rounded bg-white shadow-sm border-2 border-transparent peer-checked:border-blue-500" onerror="this.style.display='none'">
+          <span class="capitalize text-xs text-center leading-tight peer-checked:text-blue-600 dark:peer-checked:text-blue-300 peer-checked:font-semibold">${ic.name}</span>
         </label>
       `).join('');
     }
