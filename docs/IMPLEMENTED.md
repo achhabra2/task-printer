@@ -1,12 +1,28 @@
 # Task Printer — Implemented Changes
 
-Date: 2025-08-16
+Date: 2025-08-16 (Updated: 2025-08-17)
 
 This document summarizes the recent improvements implemented in the Task Printer project, how they work, and how to use them.
 
 ## Overview
 
 We focused on HTML correctness and UX, non-blocking print execution, safer configuration/secret handling, and a more flexible service setup.
+
+## Recent Changes (August 17, 2025)
+
+### Smart Font Sizing for Better Text Layout
+- **Files**: `task_printer/printing/render.py`, `tests/test_font_optimization.py`
+- **Change**: Enhanced the rendering engine to automatically adjust font sizes when text would wrap by just a few characters.
+- **Key Functions**:
+  - `_would_wrap_by_few_chars()`: Detects when text splitting is due to minor overflow
+  - Enhanced `find_optimal_font_size()`: Tries smaller fonts for better single-line fitting
+  - Integration in `render_large_text_image()` and `render_task_with_flair_image()`
+- **Configuration**: 
+  - `enable_dynamic_font_sizing` (default: True) - enables/disables the feature
+  - `max_overflow_chars_for_dynamic_sizing` (default: 3) - threshold for "few chars"
+  - `min_font_size`/`max_font_size` - bounds for font size adjustment
+- **Effect**: Two-word phrases like "Mount Pegboard" now render on single lines with slightly smaller fonts instead of wrapping awkwardly to two lines.
+- **Testing**: Added comprehensive test suite in `test_font_optimization.py` covering detection, optimization, and edge cases.
 
 ## Changes
 

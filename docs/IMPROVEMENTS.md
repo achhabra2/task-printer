@@ -2,11 +2,20 @@
 
 This document outlines potential future improvements, grouped by impact and area.
 
+## Recent Improvements (Implemented)
+
+### Smart Font Sizing for Better Text Layout
+- **Dynamic font adjustment**: When text would wrap by just 1-2 characters or split simple two-word phrases, the system now automatically reduces the font size slightly to fit the text on one line instead of wrapping.
+- **Example**: "Mount Pegboard" and "Measure Pegboard" now render on single lines with slightly smaller fonts instead of wrapping to two lines.
+- **Configuration**: Controlled by `enable_dynamic_font_sizing` (default: True), `max_overflow_chars_for_dynamic_sizing` (default: 3), and existing `min_font_size`/`max_font_size` settings.
+- **Behavior**: Only affects text that would wrap into 2 lines with small overflow. Long text that genuinely needs multiple lines continues to wrap normally.
+- **Benefits**: Cleaner appearance for short task names, better space utilization, maintains readability.
+
 ## New: Templates (Saved task sets)
 - We added a SQLite-backed Templates feature so you can save, list, load, edit, duplicate, delete, and print grouped tasks with optional flair (icon/image/QR).
 - Where to find it:
-  - Main page: “💾 Save as Template” button saves the current form (icon/QR flair included; image flair requires multipart form).
-  - Templates page: “📚 Templates” lists saved templates with actions: Load (prefill main form), Print Now, Duplicate, Delete.
+  - Main page: "💾 Save as Template" button saves the current form (icon/QR flair included; image flair requires multipart form).
+  - Templates page: "📚 Templates" lists saved templates with actions: Load (prefill main form), Print Now, Duplicate, Delete.
 - Printing uses the existing background worker. Template prints appear in Jobs with normal status updates.
 - Paths and configuration:
   - Database path: TASKPRINTER_DB_PATH (fallback to XDG data dir).

@@ -205,9 +205,54 @@ def _break_long_word(word: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFo
     return result or [""]
 
 
+def _would_wrap_by_few_chars(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, max_width: int, max_overflow_chars: int = 2) -> bool:
+    """
+    Check if text would wrap by only a few characters or words that would benefit from a smaller font.
+    
+    Args:
+        text: The text to check
+        font: Font to use for measurement
+        max_width: Maximum available width
+        max_overflow_chars: Maximum characters that constitute "few chars" overflow
+        
+    Returns:
+        True if text would wrap in a way that suggests using a smaller font might be better
+    """
+    if not text.strip():
+        return False
+        
+    # First, check if the text would actually wrap using standard wrapping
+    lines = wrap_text_improved(text, font, max_width)
+    if len(lines) <= 1:
+        return False  # Doesn't wrap at all
+    
+    # If it wraps into many lines (more than 2), probably not a "few chars" case
+    if len(lines) > 2:
+        return False
+    
+    # For 2-line wraps, check if it's a good candidate for font size reduction
+    if len(lines) == 2:
+        # Case 1: Second line is very short (just a few characters)
+        last_line = lines[-1].strip()
+        if len(last_line) <= max_overflow_chars:
+            return True
+            
+        # Case 2: Text is just two words that got split
+        words = text.split()
+        if len(words) == 2:
+            return True
+            
+        # Case 3: Total text isn't too long and only split into 2 lines  
+        if len(text) <= 30:  # Reasonable length for single line with smaller font
+            return True
+    
+    return False
+
+
 def find_optimal_font_size(text: str, config: Optional[Mapping[str, object]], max_width: int, target_lines: int = 3) -> tuple[ImageFont.FreeTypeFont | ImageFont.ImageFont, int]:
     """
     Find the optimal font size that fits the text nicely within the given constraints.
+    Now includes smart handling for text that would wrap by just 1-2 characters.
     
     Args:
         text: The text to fit
@@ -226,7 +271,27 @@ def find_optimal_font_size(text: str, config: Optional[Mapping[str, object]], ma
     min_font_size = int(config.get("min_font_size", 32))
     max_font_size = int(config.get("max_font_size", min(96, base_font_size + 24)))
     
-    # Start with base size and adjust
+    # First, check if we have a "few characters overflow" case with the base font
+    base_font = resolve_font(config, base_font_size)
+    max_overflow_chars = int(config.get("max_overflow_chars_for_dynamic_sizing", 3))
+    
+    if _would_wrap_by_few_chars(text, base_font, max_width, max_overflow_chars):
+        # Try to find a slightly smaller font size that fits on one line
+        logger.debug(f"Text '{text[:30]}...' would wrap by few chars, trying smaller font sizes")
+        
+        for font_size in range(base_font_size - 2, max(min_font_size, base_font_size - 20), -2):
+            try:
+                font = resolve_font(config, font_size)
+                text_width, _ = _measure_text(font, text)
+                
+                if text_width <= max_width:
+                    logger.debug(f"Found fitting font size: {font_size} (was {base_font_size})")
+                    return font, font_size
+                    
+            except Exception:
+                continue
+    
+    # Start with base size and adjust using original logic
     best_font = None
     best_size = base_font_size
     best_lines = float('inf')
