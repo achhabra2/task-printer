@@ -107,6 +107,18 @@
 
     <!-- Formatting -->
     <div id="formatting_fields" class="mt-4">
+      <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Receipt width (px):</label>
+      <input
+        type="number"
+        name="receipt_width"
+        min="280"
+        max="1024"
+        step="1"
+        value="{{ (config.receipt_width if config and config.receipt_width is not none else 512) }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+      >
+      <div class="text-slate-500 text-sm mb-2">Common widths: 384 (58mm), 512 or 576 (80mm). Larger values increase text size automatically.</div>
+
       <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-200">Blank lines before cut (0–10):</label>
       <input
         type="number"
@@ -335,81 +347,137 @@
     var canvas = document.getElementById('flairPreview');
     if (!canvas) return;
     var ctx = canvas.getContext('2d');
+    var desiredW = getInt('receipt_width', canvas.width);
+    if (desiredW !== canvas.width) { canvas.width = desiredW; }
     var W = canvas.width, H = canvas.height;
-    // clear
+    
+    // Clear canvas
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, W, H);
-    // params
+    
+    // Layout constants (match server values)
     var leftMargin = 10, rightMargin = 10, topMargin = 20, extraSpacing = 10;
     var sepWidth = getInt('flair_separator_width', 3);
-    var gap = getInt('flair_separator_gap', 14);
-    var flairColW = getInt('flair_col_width', 256);
+    var gapSep = getInt('flair_separator_gap', 14);
+    var gapBeforeSep = gapSep;
+    var gapAfterSep = gapSep;
+    var flairContentTarget = getInt('flair_col_width', 256);
     var flairTargetH = getInt('flair_target_height', 256);
-    var minTextW = getInt('min_text_width', Math.max(180, Math.floor(W*0.45)));
-    var baseBlock = gap + sepWidth + gap + flairColW;
-    var textW = W - leftMargin - rightMargin - baseBlock;
-    if (textW < minTextW) {
-      var delta = minTextW - textW;
-      flairColW = Math.max(128, flairColW - delta);
-      baseBlock = gap + sepWidth + gap + flairColW;
-      textW = W - leftMargin - rightMargin - baseBlock;
+    
+    // Calculate minimum text width (match server calculation)
+    var minTextWidth = getInt('min_text_width', Math.max(180, Math.floor(W * 0.45)));
+    
+    // Total flair block width (match server calculation)
+    var flairBlockWidth = gapBeforeSep + sepWidth + gapAfterSep + flairContentTarget;
+    
+    // Calculate text column width
+    var textColWidth = W - leftMargin - rightMargin - flairBlockWidth;
+    
+    // Adjust flair content target if text would be too cramped (match server logic)
+    if (textColWidth < minTextWidth) {
+      var delta = minTextWidth - textColWidth;
+      flairContentTarget = Math.max(128, flairContentTarget - delta);
+      flairBlockWidth = gapBeforeSep + sepWidth + gapAfterSep + flairContentTarget;
+      textColWidth = W - leftMargin - rightMargin - flairBlockWidth;
+      textColWidth = Math.max(textColWidth, 1);
+      flairContentTarget = Math.max(flairContentTarget, 1);
     }
-    // wrap text
+    
+    // Wrap text using adjusted text width
     var text = document.getElementById('previewText').value || '';
     ctx.fillStyle = '#000';
     ctx.font = 'bold 20px sans-serif';
+    
     function measure(str) { return ctx.measureText(str).width; }
+    
     var words = text.split(/\s+/);
     var lines = [], cur = '';
-    for (var i=0; i<words.length; i++) {
+    for (var i = 0; i < words.length; i++) {
       var test = cur ? (cur + ' ' + words[i]) : words[i];
-      if (measure(test) <= textW) cur = test;
-      else { if (cur) lines.push(cur); cur = words[i]; }
+      if (measure(test) <= textColWidth) {
+        cur = test;
+      } else {
+        if (cur) lines.push(cur);
+        cur = words[i];
+      }
     }
     if (cur) lines.push(cur);
+    
     var lineH = 28;
-    var textBlockH = topMargin*2 + (lineH + extraSpacing) * Math.max(1, lines.length);
-    var outH = Math.max(textBlockH, topMargin*2 + flairTargetH);
-    // resize canvas height if needed
-    if (H !== outH) { canvas.height = outH; H = outH; ctx = canvas.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#000'; ctx.font = 'bold 20px sans-serif'; }
-    // draw text
+    var textBlockH = topMargin * 2 + (lineH + extraSpacing) * Math.max(1, lines.length);
+    var flairTotalH = topMargin * 2 + flairTargetH;
+    var outH = Math.max(textBlockH, flairTotalH);
+    
+    // Resize canvas if needed
+    if (H !== outH) {
+      canvas.height = outH;
+      H = outH;
+      ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 20px sans-serif';
+    }
+    
+    // Draw text
     var y = topMargin + lineH;
-    for (var j=0;j<lines.length;j++){
+    for (var j = 0; j < lines.length; j++) {
       ctx.fillText(lines[j], leftMargin, y);
       y += lineH + extraSpacing;
     }
-    // right anchors
+    
+    // Anchor positions to the right (match server logic)
     var flairRight = W - rightMargin;
-    var flairLeft = flairRight - flairColW;
-    // separator
-    var sepX = flairLeft - gap - sepWidth;
-    ctx.fillRect(sepX, topMargin, sepWidth, H - topMargin*2);
-    // icon
+    var flairLeft = flairRight - flairContentTarget;
+    
+    // Draw separator (match server positioning)
+    var sepXLeft = flairLeft - gapBeforeSep - sepWidth;
+    sepXLeft = Math.max(leftMargin, Math.min(sepXLeft, W - rightMargin - sepWidth));
+    ctx.fillRect(sepXLeft, topMargin, sepWidth, H - topMargin * 2);
+    
+    // Draw icon if selected
     var iconUrl = document.getElementById('previewIcon').value;
     if (iconUrl) {
       var img = new Image();
       img.onload = function() {
-        // re-draw base
-        ctx.fillStyle = '#fff'; ctx.fillRect(0,0,W,H);
-        ctx.fillStyle = '#000'; ctx.font = 'bold 20px sans-serif';
-        // text again
+        // Clear and redraw base
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 20px sans-serif';
+        
+        // Redraw text
         var y2 = topMargin + lineH;
-        for (var k=0;k<lines.length;k++){ ctx.fillText(lines[k], leftMargin, y2); y2 += lineH + extraSpacing; }
-        // separator
-        ctx.fillRect(sepX, topMargin, sepWidth, H - topMargin*2);
-        // fit icon (respect max upscale like server)
-        var rw = flairColW / img.width;
-        var rh = flairTargetH / img.height;
-        var baseRatio = Math.min(rw, rh);
+        for (var k = 0; k < lines.length; k++) {
+          ctx.fillText(lines[k], leftMargin, y2);
+          y2 += lineH + extraSpacing;
+        }
+        
+        // Redraw separator
+        ctx.fillRect(sepXLeft, topMargin, sepWidth, H - topMargin * 2);
+        
+        // Scale icon to match server logic
+        var fw = Math.max(1, img.width);
+        var fh = Math.max(1, img.height);
+        var ratioW = flairContentTarget / fw;
+        var ratioH = flairTargetH / fh;
+        var baseRatio = Math.min(ratioW, ratioH);
         var maxScale = getFloat('flair_icon_scale_max', 2.0);
-        var ratio = Math.min(baseRatio, Math.max(1.0, maxScale));
-        // also allow downscale if needed
-        ratio = Math.min(ratio, baseRatio);
-        var nw = Math.max(1, Math.round(img.width * ratio));
-        var nh = Math.max(1, Math.round(img.height * ratio));
-        var ix = flairLeft + Math.max(0, Math.floor((flairColW - nw)/2));
-        var iy = topMargin + Math.max(0, Math.floor((H - topMargin*2 - nh)/2));
-        ctx.drawImage(img, ix, iy, nw, nh);
+        var ratio = Math.max(0.01, Math.min(baseRatio, Math.max(1.0, maxScale)));
+        ratio = Math.min(ratio, baseRatio); // Allow downscale if needed
+        
+        var newW = Math.max(1, Math.round(fw * ratio));
+        var newH = Math.max(1, Math.round(fh * ratio));
+        
+        // Center flair in content area (match server centering)
+        var flairX = flairLeft + Math.max(0, Math.floor((flairContentTarget - newW) / 2));
+        var flairY = topMargin + Math.max(0, Math.floor((H - topMargin * 2 - newH) / 2));
+        
+        // Clamp to canvas bounds
+        flairX = Math.max(0, Math.min(flairX, W - newW));
+        flairY = Math.max(0, Math.min(flairY, H - newH));
+        
+        ctx.drawImage(img, flairX, flairY, newW, newH);
       };
       img.src = iconUrl;
     }
@@ -427,7 +495,7 @@
     }
 
     // preview bindings
-    ['flair_separator_width','flair_separator_gap','flair_col_width','flair_target_height','min_text_width'].forEach(function(name){
+    ['receipt_width','flair_separator_width','flair_separator_gap','flair_col_width','flair_target_height','min_text_width'].forEach(function(name){
       var el = document.querySelector('input[name="'+name+'"]');
       if (el) el.addEventListener('input', drawPreview);
     });

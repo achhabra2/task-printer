@@ -83,15 +83,31 @@ def setup():
         serial_port = form.get("serial_port", "")
         serial_baudrate = form.get("serial_baudrate", "19200")
 
-        # Determine width and font size heuristics
-        receipt_width = 512
+        # Determine width and font size
+        # Prefer explicit form-provided receipt_width; fall back to heuristics
+        def _to_int(val, default):
+            try:
+                return int(val)
+            except Exception:
+                return default
+
+        provided_width_raw = (form.get("receipt_width", "") or "").strip()
+        provided_width = _to_int(provided_width_raw, 0) if provided_width_raw != "" else 0
+
+        if provided_width > 0:
+            # Reasonable clamp to supported printer widths
+            receipt_width = max(280, min(1024, provided_width))
+        else:
+            # Heuristics by vendor/product for a decent default
+            receipt_width = 512
+            if printer_type == "usb":
+                if usb_vendor_id.lower() == "0x04b8":
+                    if usb_product_id.lower() in ["0x0e28", "0x0202", "0x020a", "0x0e15", "0x0e03"]:
+                        receipt_width = 512
+                    else:
+                        receipt_width = 576
+
         task_font_size = 72
-        if printer_type == "usb":
-            if usb_vendor_id.lower() == "0x04b8":
-                if usb_product_id.lower() in ["0x0e28", "0x0202", "0x020a", "0x0e15", "0x0e03"]:
-                    receipt_width = 512
-                else:
-                    receipt_width = 576
         if receipt_width >= 576:
             task_font_size = 90
         elif receipt_width >= 512:
@@ -124,12 +140,6 @@ def setup():
             default_tear_delay_seconds = 60.0
 
         # Flair layout parameters (optional tuning)
-        def _to_int(val, default):
-            try:
-                return int(val)
-            except Exception:
-                return default
-
         def _to_float(val, default):
             try:
                 return float(val)
@@ -260,15 +270,32 @@ def setup_test_print():
     serial_port = form.get("serial_port", "")
     serial_baudrate = form.get("serial_baudrate", "19200")
 
-    # Match width/font size heuristics used in setup()
-    receipt_width = 512
+    # Match width/font size selection used in setup(); prefer explicit width
+    def _to_int(val, default):
+        try:
+            return int(val)
+        except Exception:
+            return default
+
+    def _to_float(val, default):
+        try:
+            return float(val)
+        except Exception:
+            return default
+
+    provided_width_raw = (form.get("receipt_width", "") or "").strip()
+    provided_width = _to_int(provided_width_raw, 0) if provided_width_raw != "" else 0
+    if provided_width > 0:
+        receipt_width = max(280, min(1024, provided_width))
+    else:
+        receipt_width = 512
+        if printer_type == "usb":
+            if usb_vendor_id.lower() == "0x04b8":
+                if usb_product_id.lower() in ["0x0e28", "0x0202", "0x020a", "0x0e15", "0x0e03"]:
+                    receipt_width = 512
+                else:
+                    receipt_width = 576
     task_font_size = 72
-    if printer_type == "usb":
-        if usb_vendor_id.lower() == "0x04b8":
-            if usb_product_id.lower() in ["0x0e28", "0x0202", "0x020a", "0x0e15", "0x0e03"]:
-                receipt_width = 512
-            else:
-                receipt_width = 576
     if receipt_width >= 576:
         task_font_size = 90
     elif receipt_width >= 512:

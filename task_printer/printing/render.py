@@ -178,9 +178,9 @@ def render_large_text_image(text: str, config: Optional[Mapping[str, object]] = 
     font = resolve_font(cfg, font_size)
 
     # Margins and spacing
-    left_margin = 10
-    right_margin = 10
-    top_margin = 20
+    left_margin = 0
+    right_margin = 0
+    top_margin = 10
     extra_spacing = 10
 
     max_text_width = max(1, width - (left_margin + right_margin))
@@ -251,9 +251,9 @@ def render_task_with_flair_image(
         return render_large_text_image(text, cfg)
 
     # Layout constants
-    left_margin = 10
-    right_margin = 10
-    top_margin = 20
+    left_margin = 0
+    right_margin = 0
+    top_margin = 10
     extra_spacing = 10
 
     # Separator and gaps (configurable)
