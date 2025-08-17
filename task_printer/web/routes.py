@@ -276,3 +276,9 @@ def test_print():
         current_app.logger.exception("test_print error: %s", e)
         flash(f"Error queuing test print: {e!s}", "error")
         return redirect(url_for("web.index"))
+
+
+@web_bp.route("/help")
+def help():
+    """Display help page with usage instructions."""
+    return render_template("help.html")

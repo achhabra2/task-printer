@@ -198,6 +198,9 @@ def _default_context_for(name: str) -> Dict:
         base.update({"templates": _dummy_templates()})
     elif name == "loading.html":
         base.update({"auto_startup": True})
+    elif name == "help.html":
+        # Help page doesn't need special context beyond base
+        pass
     else:
         # For other files (including base.html and _components.html), defaults are enough
         pass

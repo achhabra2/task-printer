@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_components.html" import btn %}
+
+{% block title %}Help - Task Printer{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 py-6">
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">Help</h1>
+        {{ btn("← Back to Tasks", href="/", variant="primary", size="sm") }}
+    </div>
+
+    <!-- Instructions -->
+    <div
+        class="rounded-md p-6 mb-6 border-l-4 bg-blue-50 border-blue-600 text-blue-900 dark:bg-slate-700 dark:text-blue-300"
+    >
+        <h2 class="m-0 mb-4 text-xl font-semibold text-blue-700 dark:text-blue-300">
+            How to use Task Printer:
+        </h2>
+        <ul class="mt-2 mb-0 list-disc pl-5 space-y-2">
+            <li>
+                Use the <b>⚙️ Settings</b> button to configure your printer
+                and preferences
+            </li>
+            <li>
+                Each section can have a <b>subtitle</b> (e.g., "Cleaning
+                kitchen") and multiple tasks
+            </li>
+            <li>
+                Click <b>➕ Add Subtitle Section</b> to add a new group of
+                tasks with its own subtitle
+            </li>
+            <li>
+                Click <b>➕ Add Task</b> to add more task fields within a
+                section
+            </li>
+            <li>
+                Click <b>Print Tasks</b> to print each task as a separate
+                receipt
+            </li>
+            <li>
+                All printing is sent directly to your configured
+                USB/network/serial printer
+            </li>
+        </ul>
+    </div>
+
+    <!-- Additional Help Sections -->
+    <div class="grid gap-6 md:grid-cols-2">
+        <div class="rounded-md p-6 border bg-gray-50 dark:bg-slate-800 dark:border-slate-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                📝 Task Management
+            </h3>
+            <ul class="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+                <li>• Tasks are grouped by subtitle sections</li>
+                <li>• Each task prints on a separate receipt</li>
+                <li>• Use flair icons to categorize tasks</li>
+                <li>• Remove tasks with the ❌ button</li>
+            </ul>
+        </div>
+
+        <div class="rounded-md p-6 border bg-gray-50 dark:bg-slate-800 dark:border-slate-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                🎨 Flair Icons
+            </h3>
+            <ul class="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+                <li>• Choose icons to visually categorize tasks</li>
+                <li>• Icons appear on printed receipts</li>
+                <li>• Available categories: cleaning, fitness, family, etc.</li>
+                <li>• Flair is optional for all tasks</li>
+            </ul>
+        </div>
+
+        <div class="rounded-md p-6 border bg-gray-50 dark:bg-slate-800 dark:border-slate-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                🖨️ Printing
+            </h3>
+            <ul class="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+                <li>• Configure printer in Settings first</li>
+                <li>• Supports USB, network, and serial printers</li>
+                <li>• Each task prints as a separate receipt</li>
+                <li>• Check Jobs page for print status</li>
+            </ul>
+        </div>
+
+        <div class="rounded-md p-6 border bg-gray-50 dark:bg-slate-800 dark:border-slate-700">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                ⚙️ Settings
+            </h3>
+            <ul class="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+                <li>• Configure printer connection details</li>
+                <li>• Set paper size and formatting options</li>
+                <li>• Test print functionality</li>
+                <li>• Save templates for repeated use</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
