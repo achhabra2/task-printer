@@ -28,14 +28,17 @@ Repository map (refactored)
     - `assets.py` — static asset discovery (icons)
     - `config.py` — config helpers (path resolution, defaults)
     - `logging.py` — centralized logging configuration (JSON logging support, request ID hooks)
-  - `task_printer/web/` — HTTP layer (each module may register a Flask blueprint)
-    - `routes.py` — main UI / index pages (blueprint `web_bp`)
-    - `setup.py` — setup flow & saving config (`setup_bp`)
-    - `jobs.py` — jobs list and status endpoints (`jobs_bp`)
-    - `health.py` — `/healthz` reporting (`health_bp`)
-  - `task_printer/printing/` — printing and rendering
-    - `render.py` — text → image rendering helpers, font resolution, image composition
-    - `worker.py` — print queue + background worker (`ensure_worker`, queue API)
+- `task_printer/web/` — HTTP layer (each module may register a Flask blueprint)
+  - `routes.py` — main UI / index pages (blueprint `web_bp`)
+  - `setup.py` — setup flow & saving config (`setup_bp`)
+  - `jobs.py` — jobs list and status endpoints (`jobs_bp`)
+  - `health.py` — `/healthz` reporting (`health_bp`)
+  - `templates.py` — templates CRUD, fetch, print (`templates_bp`)
+- `task_printer/printing/` — printing and rendering
+  - `render.py` — text → image rendering helpers, font resolution, image composition
+  - `emoji.py` — emoji rasterization helpers
+  - `metadata.py` — renders a compact metadata panel (assigned/due/priority/assignee)
+  - `worker.py` — print queue + background worker (`ensure_worker`, queue API)
 - `templates/` — Jinja templates (kept at repo root for easy editing).
   - `_components.html` — cohesive UI macros for a consistent look-and-feel (see “Frontend & Theming”).
   - `_form_macros.html` — form macros used by the index page to DRY up repeated markup:
@@ -97,6 +100,13 @@ Printing details
   - `image` uploads are stored under `TASKPRINTER_MEDIA_PATH` and referenced by the worker.
   - `qr` payloads are printed using the ESC/POS driver's QR routines if available, otherwise rendered as an image.
   - `emoji` is rasterized via `printing.emoji.rasterize_emoji` and composed like an icon.
+
+Metadata (per-task)
+- Optional fields: `assigned`, `due`, `priority`, `assignee`.
+- UI: Toggle “Details” under each task reveals inputs.
+- Payload: tasks include `metadata: {assigned, due, priority, assignee}` when provided.
+- Rendering: A compact panel is rendered below the task receipt via `printing.metadata.render_metadata_block`.
+ - Dates: UI uses `type="date"` inputs with quick helpers (Today, +1d/+1w/+1m). Server accepts ISO `YYYY-MM-DD` or `MM-DD`/`MM/DD`; printed as `MM-DD`.
 
 Tear-off mode
 - Per-print: the index page includes a number input "Tear-off delay (seconds)". When > 0, the worker suppresses cuts and sleeps between tasks.
@@ -207,6 +217,7 @@ Config keys (selected)
 - `default_tear_delay_seconds`: Optional float (0–60). When set, template prints use this value to enable tear-off mode by default, and the index page preloads it in the tear-off input; users can override per print.
 - `emoji_font_path`: Optional absolute path to a monochrome emoji TTF for ESC/POS.
 - `emoji_font_size`: Optional int; defaults to `flair_target_height` when rasterizing emoji.
+ - Templates DB: `TASKPRINTER_DB_PATH` for SQLite location; schema includes per-task metadata columns.
 
 Definition of done for changes
 - No `print()` statements; use `app.logger`.

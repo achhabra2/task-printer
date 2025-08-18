@@ -68,6 +68,41 @@
             <div class="flair-icon-picker hidden">
               <div class="icon-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 mt-2 p-3 sm:p-2 bg-gray-50 dark:bg-slate-700 rounded-lg border max-h-64 overflow-y-auto"></div>
             </div>
+            <div class="details mb-6">
+              <button type="button" class="toggle-details text-xs text-blue-700 dark:text-blue-300 underline">Details</button>
+              <div class="details-panel hidden mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs text-slate-600 dark:text-slate-300">Assigned date</label>
+                  <div class="flex items-center gap-1.5">
+                    <input type="date" class="detail-assigned w-full p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="YYYY-MM-DD" />
+                    <button type="button" class="btn-date-today text-xs px-2 py-1 rounded border dark:border-slate-600">Today</button>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-600 dark:text-slate-300">Due date</label>
+                  <div class="flex items-center gap-1.5">
+                    <input type="date" class="detail-due w-full p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="YYYY-MM-DD" />
+                    <button type="button" class="btn-date-today text-xs px-2 py-1 rounded border dark:border-slate-600">Today</button>
+                    <button type="button" class="btn-date-plus1 text-xs px-2 py-1 rounded border dark:border-slate-600">+1d</button>
+                    <button type="button" class="btn-date-plus1w text-xs px-2 py-1 rounded border dark:border-slate-600">+1w</button>
+                    <button type="button" class="btn-date-plus1m text-xs px-2 py-1 rounded border dark:border-slate-600">+1m</button>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-600 dark:text-slate-300">Priority</label>
+                  <select class="detail-priority w-full p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600">
+                    <option value="">(none)</option>
+                    <option>Normal</option>
+                    <option>High</option>
+                    <option>Urgent</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-600 dark:text-slate-300">Assignee</label>
+                  <input type="text" class="detail-assignee w-full p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="Name" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       `.trim();
@@ -86,6 +121,64 @@
   }
   function bySelAll(root, sel) {
     return Array.from((root || document).querySelectorAll(sel));
+  }
+  function todayMMDD() {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${mm}-${dd}`;
+  }
+  function todayISO() {
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${mm}-${dd}`;
+  }
+  function addDaysISO(iso, days) {
+    try {
+      if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) iso = todayISO();
+      const [y, m, d] = iso.split("-").map((s) => parseInt(s, 10));
+      const dt = new Date(y, m - 1, d);
+      dt.setDate(dt.getDate() + (parseInt(days, 10) || 0));
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getDate()).padStart(2, "0");
+      return `${dt.getFullYear()}-${mm}-${dd}`;
+    } catch {
+      return todayISO();
+    }
+  }
+  function addMonthsISO(iso, months) {
+    try {
+      if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) iso = todayISO();
+      const [y, m, d] = iso.split("-").map((s) => parseInt(s, 10));
+      const dt = new Date(y, m - 1, d);
+      const targetMonth = dt.getMonth() + (parseInt(months, 10) || 0);
+      // Set to 1st then set month to avoid overflow, then clamp day
+      dt.setDate(1);
+      dt.setMonth(targetMonth);
+      // Clamp day to end of month
+      const lastDay = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+      dt.setDate(Math.min(d, lastDay));
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getDate()).padStart(2, "0");
+      return `${dt.getFullYear()}-${mm}-${dd}`;
+    } catch {
+      return todayISO();
+    }
+  }
+  function normalizeToISO(v) {
+    if (!v) return "";
+    v = String(v).trim();
+    // Already ISO YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+    // MM-DD or MM/DD
+    let m = v.match(/^(\d{2})[-\/]?(\d{2})$/);
+    if (m) {
+      const year = String(new Date().getFullYear());
+      return `${year}-${m[1]}-${m[2]}`;
+    }
+    // Fallback: empty
+    return "";
   }
   function getCookie(name) {
     const value = `; ${document.cookie}`;
@@ -285,6 +378,23 @@
       grid.classList.add("icon-grid");
     }
 
+    // Wire details input names under this task
+    const details = node.querySelector(".details");
+    if (details) {
+      const assigned = details.querySelector(".detail-assigned");
+      const due = details.querySelector(".detail-due");
+      const priority = details.querySelector(".detail-priority");
+      const assignee = details.querySelector(".detail-assignee");
+      if (assigned) assigned.name = `detail_assigned_${sectionId}_${taskNumber}`;
+      if (due) due.name = `detail_due_${sectionId}_${taskNumber}`;
+      if (priority) priority.name = `detail_priority_${sectionId}_${taskNumber}`;
+      if (assignee) assignee.name = `detail_assignee_${sectionId}_${taskNumber}`;
+      // Default dates to today (ISO) if empty
+      const today = todayISO();
+      if (assigned && !assigned.value) assigned.value = today;
+      if (due && !due.value) due.value = today;
+    }
+
     return node;
   }
 
@@ -402,6 +512,20 @@
           .replace(/^(flair_qr_\d+_)\d+$/, `$1${newNum}`)
           .replace(/^(flair_emoji_\d+_)\d+$/, `$1${newNum}`)
           .replace(/^(flair_icon_\d+_)\d+$/, `$1${newNum}`);
+      });
+    });
+
+    // Renumber details fields
+    const detailPanels = taskContainer.querySelectorAll(".details");
+    detailPanels.forEach((dp, idx) => {
+      const newNum = idx + 1;
+      dp.querySelectorAll("input, select").forEach((el) => {
+        if (!el.name) return;
+        el.name = el.name
+          .replace(/^(detail_assigned_\d+_)\d+$/, `$1${newNum}`)
+          .replace(/^(detail_due_\d+_)\d+$/, `$1${newNum}`)
+          .replace(/^(detail_priority_\d+_)\d+$/, `$1${newNum}`)
+          .replace(/^(detail_assignee_\d+_)\d+$/, `$1${newNum}`);
       });
     });
 
@@ -552,7 +676,40 @@
           }
         }
 
-        tasks.push({ text, flair_type, flair_value });
+        // Details metadata
+        const detailsPanel = taskContainer.querySelector(
+          `.details input[name="detail_assigned_${sid}_${tnum}"]`
+        )
+          ? taskContainer
+          : null;
+        let metadata = null;
+        if (detailsPanel) {
+          const assigned = (
+            taskContainer.querySelector(
+              `input[name="detail_assigned_${sid}_${tnum}"]`,
+            ) || { value: "" }
+          ).value.trim();
+          const due = (
+            taskContainer.querySelector(
+              `input[name="detail_due_${sid}_${tnum}"]`,
+            ) || { value: "" }
+          ).value.trim();
+          const priority = (
+            taskContainer.querySelector(
+              `select[name="detail_priority_${sid}_${tnum}"]`,
+            ) || { value: "" }
+          ).value.trim();
+          const assignee = (
+            taskContainer.querySelector(
+              `input[name="detail_assignee_${sid}_${tnum}"]`,
+            ) || { value: "" }
+          ).value.trim();
+          if (assigned || due || priority || assignee) {
+            metadata = { assigned, due, priority, assignee };
+          }
+        }
+
+        tasks.push({ text, flair_type, flair_value, metadata });
       });
 
       if (subtitle || tasks.length) {
@@ -812,6 +969,19 @@
     // images cannot be prefilled due to browser file input restrictions
   }
 
+  function setDetailsForTask(sectionDiv, sid, tnum, t) {
+    if (!t || !t.metadata) return;
+    const m = t.metadata || {};
+    const assigned = sectionDiv.querySelector(`input[name="detail_assigned_${sid}_${tnum}"]`);
+    const due = sectionDiv.querySelector(`input[name="detail_due_${sid}_${tnum}"]`);
+    const priority = sectionDiv.querySelector(`select[name="detail_priority_${sid}_${tnum}"]`);
+    const assignee = sectionDiv.querySelector(`input[name="detail_assignee_${sid}_${tnum}"]`);
+    if (assigned && m.assigned) assigned.value = normalizeToISO(m.assigned);
+    if (due && m.due) due.value = normalizeToISO(m.due);
+    if (priority && m.priority) priority.value = m.priority;
+    if (assignee && m.assignee) assignee.value = m.assignee;
+  }
+
   function prefillFromTemplateData(tpl) {
     const container = document.getElementById("subtitleSections");
     if (!container) return false;
@@ -844,6 +1014,7 @@
         if (firstTaskInput)
           firstTaskInput.value = tasks[0] && tasks[0].text ? tasks[0].text : "";
         setFlairForTask(sectionDiv, sid, 1, tasks[0]);
+        setDetailsForTask(sectionDiv, sid, 1, tasks[0]);
 
         // Additional tasks
         for (let i = 1; i < tasks.length; i++) {
@@ -856,6 +1027,7 @@
           if (taskInput)
             taskInput.value = tasks[i] && tasks[i].text ? tasks[i].text : "";
           setFlairForTask(sectionDiv, sid, tnum, tasks[i]);
+          setDetailsForTask(sectionDiv, sid, tnum, tasks[i]);
         }
 
         const taskContainer = sectionDiv.querySelector(".taskContainer");
@@ -937,17 +1109,66 @@
     // This may overwrite the initial default section created above.
     autoPrefill();
 
-    // Delegated handlers for dynamically added buttons that use our functions explicitly
+  // Delegated handlers for dynamically added buttons that use our functions explicitly
     document.addEventListener("click", function (e) {
       const target = e.target;
       if (!(target instanceof Element)) return;
 
-      if (target.classList.contains("add-task-btn")) {
-        e.preventDefault();
-        addTask(target);
+    if (target.classList.contains("add-task-btn")) {
+      e.preventDefault();
+      addTask(target);
       } else if (target.classList.contains("remove-task")) {
         e.preventDefault();
         removeTask(target);
+      } else if (target.classList.contains("toggle-details")) {
+      e.preventDefault();
+      const panel = target.closest(".details").querySelector(".details-panel");
+      if (panel) {
+        const willShow = panel.classList.contains("hidden");
+        panel.classList.toggle("hidden");
+        if (willShow) {
+          // Auto-fill dates when opening if empty (ISO)
+          const container = target.closest(".details");
+          const assigned = container.querySelector(".detail-assigned");
+          const due = container.querySelector(".detail-due");
+          const today = todayISO();
+          if (assigned && !assigned.value) assigned.value = today;
+          if (due && !due.value) due.value = today;
+        }
+      }
+      } else if (target.classList.contains("btn-date-today")) {
+        e.preventDefault();
+        const container = target.closest(".details") || target.closest(".flair-row") || document;
+        // Prefer due if in same row and next to button
+        const due = container.querySelector(".detail-due");
+        const assigned = container.querySelector(".detail-assigned");
+        const iso = todayISO();
+        // If the button sits next to a specific input, fill its previous sibling
+        const prev = target.previousElementSibling;
+        if (prev && prev.tagName === "INPUT" && prev.type === "date") {
+          prev.value = iso;
+          return;
+        }
+        if (assigned) assigned.value = iso;
+        if (due) due.value = iso;
+      } else if (target.classList.contains("btn-date-plus1")) {
+        e.preventDefault();
+        const container = target.closest(".details") || document;
+        const due = container.querySelector(".detail-due");
+        const base = due && due.value ? due.value : todayISO();
+        if (due) due.value = addDaysISO(base, 1);
+      } else if (target.classList.contains("btn-date-plus1w")) {
+        e.preventDefault();
+        const container = target.closest(".details") || document;
+        const due = container.querySelector(".detail-due");
+        const base = due && due.value ? due.value : todayISO();
+        if (due) due.value = addDaysISO(base, 7);
+      } else if (target.classList.contains("btn-date-plus1m")) {
+        e.preventDefault();
+        const container = target.closest(".details") || document;
+        const due = container.querySelector(".detail-due");
+        const base = due && due.value ? due.value : todayISO();
+        if (due) due.value = addMonthsISO(base, 1);
       }
     });
 

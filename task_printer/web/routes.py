@@ -53,6 +53,29 @@ def _has_control_chars(s: str) -> bool:
     return any((ord(c) < 32 and c not in "\n\r\t") or ord(c) == 127 for c in s)
 
 
+def _valid_date_str(s: str) -> bool:
+    """Allow empty, YYYY-MM-DD, MM-DD, or MM/DD; check basic ranges."""
+    if not s:
+        return True
+    try:
+        s = str(s).strip()
+        if not s:
+            return True
+        import re
+
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+            y, m, d = s.split("-")
+            mi, di = int(m), int(d)
+            return 1 <= mi <= 12 and 1 <= di <= 31
+        if re.match(r"^\d{2}-\d{2}$", s) or re.match(r"^\d{2}/\d{2}$", s):
+            parts = s.replace("/", "-").split("-")
+            mi, di = int(parts[0]), int(parts[1])
+            return 1 <= mi <= 12 and 1 <= di <= 31
+        return False
+    except Exception:
+        return False
+
+
 @web_bp.before_app_request
 def _setup_gating():
     """
@@ -138,6 +161,7 @@ def index():
                         total_chars += len(text)
 
                         flair = None
+                        meta: Optional[Dict[str, Any]] = None
                         ftype = str(t.get("flair_type") or "none").strip().lower()
                         fval = t.get("flair_value")
 
@@ -191,7 +215,30 @@ def index():
                                     file.save(dest)
                                     flair = {"type": "image", "value": dest}
 
-                        subtitle_tasks.append({"subtitle": subtitle, "task": text, "flair": flair})
+                        # Optional metadata
+                        m = t.get("metadata") or t.get("meta")
+                        if isinstance(m, dict):
+                            # Shallow validation/limits
+                            assigned = (m.get("assigned") or m.get("assigned_date") or "").strip()
+                            due = (m.get("due") or m.get("due_date") or "").strip()
+                            priority = (m.get("priority") or "").strip()
+                            assignee = (m.get("assignee") or "").strip()
+                            if assigned and not _valid_date_str(assigned):
+                                raise ValueError(f"Invalid assigned date in section {s_idx} task {t_idx}.")
+                            if due and not _valid_date_str(due):
+                                raise ValueError(f"Invalid due date in section {s_idx} task {t_idx}.")
+                            if any([assigned, due, priority, assignee]):
+                                # Length clamps
+                                if len(assigned) > 30 or len(due) > 30 or len(priority) > 20 or len(assignee) > 60:
+                                    raise ValueError("Metadata fields too long.")
+                                meta = {
+                                    "assigned": assigned,
+                                    "due": due,
+                                    "priority": priority,
+                                    "assignee": assignee,
+                                }
+
+                        subtitle_tasks.append({"subtitle": subtitle, "task": text, "flair": flair, "meta": meta})
 
                 if total_chars > MAX_TOTAL_CHARS:
                     raise ValueError(f"Input too large (max total characters {MAX_TOTAL_CHARS}).")
@@ -306,7 +353,30 @@ def index():
                             file.save(dest)
                             flair = {"type": "image", "value": dest}
 
-                subtitle_tasks.append({"subtitle": subtitle, "task": task, "flair": flair})
+                # Optional metadata via legacy fields
+                assigned = (form.get(f"detail_assigned_{section}_{task_num}", "") or "").strip()
+                due = (form.get(f"detail_due_{section}_{task_num}", "") or "").strip()
+                priority = (form.get(f"detail_priority_{section}_{task_num}", "") or "").strip()
+                assignee = (form.get(f"detail_assignee_{section}_{task_num}", "") or "").strip()
+                meta = None
+                if any([assigned, due, priority, assignee]):
+                    if assigned and not _valid_date_str(assigned):
+                        flash("Invalid assigned date.", "error")
+                        return redirect(url_for("web.index"))
+                    if due and not _valid_date_str(due):
+                        flash("Invalid due date.", "error")
+                        return redirect(url_for("web.index"))
+                    if len(assigned) > 30 or len(due) > 30 or len(priority) > 20 or len(assignee) > 60:
+                        flash("Metadata fields too long.", "error")
+                        return redirect(url_for("web.index"))
+                    meta = {
+                        "assigned": assigned,
+                        "due": due,
+                        "priority": priority,
+                        "assignee": assignee,
+                    }
+
+                subtitle_tasks.append({"subtitle": subtitle, "task": task, "flair": flair, "meta": meta})
                 task_num += 1
 
                 if task_num > MAX_TASKS_PER_SECTION:

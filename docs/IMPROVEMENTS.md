@@ -95,3 +95,7 @@ This document outlines potential future improvements, grouped by impact and area
 3. Logging + health checks + systemd hardening
 4. Preview + presets/history
 5. Tests and CI
+### Task Metadata Panel
+- **Per-task metadata**: Optional Assigned date, Due date, Priority, Assignee can be entered under a task (“Details” toggle).
+- **Rendering**: Prints below the task as a compact panel; does not change left/right layout.
+- **Parsing**: Supported via JSON payload (`metadata`) and legacy form fields (`detail_*`).

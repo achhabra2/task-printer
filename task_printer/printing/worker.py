@@ -31,6 +31,7 @@ from task_printer.printing.render import (
     render_task_with_emoji,
     resolve_font,
 )
+from task_printer.printing.metadata import render_metadata_block
 
 # Types
 SubtitleTask = Union[
@@ -187,10 +188,12 @@ def _print_subtitle_task_item(
     if isinstance(item, (list, tuple)):
         subtitle, task = (item[0] or ""), (item[1] or "")
         flair = None
+        meta = None
     else:
         subtitle = str(item.get("subtitle", "") or "")
         task = str(item.get("task", "") or "")
         flair = item.get("flair")
+        meta = item.get("meta") or item.get("metadata")
 
     if not task.strip():
         return
@@ -241,11 +244,25 @@ def _print_subtitle_task_item(
             logger.warning(f"Flair render failed for task {idx}: {e}")
 
     # Task text image (or combined with flair image/icon)
-    if combined_img is not None:
-        p.image(combined_img)
+    base_img = combined_img if combined_img is not None else render_large_text_image(task.strip(), config)
+
+    # If metadata is provided, render a panel and stack below
+    try:
+        meta_img = render_metadata_block(meta, config) if isinstance(meta, Mapping) else None
+    except Exception:
+        meta_img = None
+
+    if meta_img is not None:
+        w = max(getattr(base_img, "width", 0) or 0, getattr(meta_img, "width", 0) or 0)
+        h = (getattr(base_img, "height", 0) or 0) + (getattr(meta_img, "height", 0) or 0)
+        from PIL import Image as _Image
+
+        out = _Image.new("L", (int(w), int(h)), 255)
+        out.paste(base_img, (0, 0))
+        out.paste(meta_img, (0, getattr(base_img, "height", 0)))
+        p.image(out)
     else:
-        img = render_large_text_image(task.strip(), config)
-        p.image(img)
+        p.image(base_img)
 
     p.set(align="left", bold=False, width=1, height=1)
     if bool(config.get("print_separators", True)):

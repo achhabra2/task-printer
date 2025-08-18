@@ -161,12 +161,27 @@ def _parse_sections_from_form() -> Tuple[List[Dict[str, Any]], Optional[str]]:
                         file.save(dest)
                         flair_value = dest
 
+            # Optional metadata (details)
+            assigned = (form.get(f"detail_assigned_{section_idx}_{task_num}", "") or "").strip()
+            due = (form.get(f"detail_due_{section_idx}_{task_num}", "") or "").strip()
+            priority = (form.get(f"detail_priority_{section_idx}_{task_num}", "") or "").strip()
+            assignee = (form.get(f"detail_assignee_{section_idx}_{task_num}", "") or "").strip()
+            metadata = None
+            if any([assigned, due, priority, assignee]):
+                metadata = {
+                    "assigned": assigned,
+                    "due": due,
+                    "priority": priority,
+                    "assignee": assignee,
+                }
+
             sec_dict["tasks"].append(
                 {
                     "text": task,
                     "flair_type": flair_type,
                     "flair_value": flair_value,
                     "flair_size": flair_size,
+                    **({"metadata": metadata} if metadata else {}),
                 },
             )
 
@@ -189,6 +204,28 @@ def _parse_sections_from_form() -> Tuple[List[Dict[str, Any]], Optional[str]]:
     return sections, None
 
 
+def _valid_date_str(s: str) -> bool:
+    if not s:
+        return True
+    try:
+        s = str(s).strip()
+        if not s:
+            return True
+        import re
+
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", s):
+            y, m, d = s.split("-")
+            mi, di = int(m), int(d)
+            return 1 <= mi <= 12 and 1 <= di <= 31
+        if re.match(r"^\d{2}-\d{2}$", s) or re.match(r"^\d{2}/\d{2}$", s):
+            parts = s.replace("/", "-").split("-")
+            mi, di = int(parts[0]), int(parts[1])
+            return 1 <= mi <= 12 and 1 <= di <= 31
+        return False
+    except Exception:
+        return False
+
+
 def _parse_template_payload() -> Tuple[str, Optional[str], List[Dict[str, Any]], Optional[str]]:
     """
     Parse a create/update payload from JSON or form.
@@ -201,6 +238,21 @@ def _parse_template_payload() -> Tuple[str, Optional[str], List[Dict[str, Any]],
         name = (data.get("name") or "").strip()
         notes = (data.get("notes") or None) or None
         sections = list(data.get("sections") or [])
+        # Validate metadata dates if provided
+        for si, sec in enumerate(sections, start=1):
+            if not isinstance(sec, dict):
+                continue
+            for ti, t in enumerate(list(sec.get("tasks") or []), start=1):
+                if not isinstance(t, dict):
+                    continue
+                md = t.get("metadata") or t.get("meta")
+                if isinstance(md, dict):
+                    assigned = (md.get("assigned") or md.get("assigned_date") or "").strip()
+                    due = (md.get("due") or md.get("due_date") or "").strip()
+                    if assigned and not _valid_date_str(assigned):
+                        return "", None, [], f"Invalid assigned date in section {si} task {ti}."
+                    if due and not _valid_date_str(due):
+                        return "", None, [], f"Invalid due date in section {si} task {ti}."
         if not name:
             return "", None, [], "Template name is required."
         # Allow DB layer to enforce strict validation; do a basic sanity check here
@@ -318,7 +370,7 @@ def duplicate_template_route(template_id: int):
 def _template_to_print_payload(t: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Convert a stored template into the printing payload expected by the worker:
-    List of {"subtitle": str, "task": str, "flair": {"type","value","size"?}}
+    List of {"subtitle": str, "task": str, "flair": {"type","value","size"?}, "meta"?: {...}}
     """
     payload: List[Dict[str, Any]] = []
     for sec in t.get("sections", []):
@@ -335,7 +387,24 @@ def _template_to_print_payload(t: Dict[str, Any]) -> List[Dict[str, Any]]:
                 flair = {"type": ftype, "value": fval}
                 if fsize is not None:
                     flair["size"] = fsize
-            payload.append({"subtitle": subtitle, "task": text, "flair": flair})
+            meta = None
+            md = task.get("metadata") if isinstance(task, dict) else None
+            if isinstance(md, dict):
+                assigned = (md.get("assigned") or "").strip()
+                due = (md.get("due") or "").strip()
+                priority = (md.get("priority") or "").strip()
+                assignee = (md.get("assignee") or "").strip()
+                if any([assigned, due, priority, assignee]):
+                    meta = {
+                        "assigned": assigned,
+                        "due": due,
+                        "priority": priority,
+                        "assignee": assignee,
+                    }
+            item = {"subtitle": subtitle, "task": text, "flair": flair}
+            if meta:
+                item["meta"] = meta
+            payload.append(item)
     return payload
 
 

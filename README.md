@@ -79,6 +79,16 @@ Recent frontend refactor: the dynamic form UI is now driven by small Jinja form 
  - Toggle dark mode for easier viewing.
  - Check recent print jobs and status via the **🧾 Jobs** page.
 
+### Task Metadata (optional)
+- Click the small “Details” toggle under a task to reveal fields:
+  - Assigned date, Due date, Priority (Normal/High/Urgent), Assignee
+- These print below the task as a compact panel (grayscale) so they don’t affect the main text/flair layout.
+- JSON payloads can set per-task `metadata` directly (see below).
+- Date picker & helpers:
+  - Assigned/Due are date inputs; default to today when you add a row or open Details.
+  - Quick buttons: Today, +1d, +1w, +1m for fast Due adjustments.
+  - Server-side validation accepts YYYY-MM-DD, MM-DD, or MM/DD and checks ranges.
+
 ## Health Check
 
 - The endpoint `GET /healthz` returns JSON with app and printer status (worker started/alive, queue size, config presence, and basic printer reachability).
@@ -154,6 +164,7 @@ Press `Ctrl+C` in the terminal where the application is running.
 - Frontend JSON payload:
   - On submit, the index form adds a hidden input `payload_json` containing `{ sections: [...] }`, where each section has `subtitle` and an array of `tasks`.
   - Each task may include flair: `{ flair_type: "none" | "icon" | "image" | "qr" | "emoji", flair_value: string | null }`.
+  - Each task may include metadata: `{ metadata: { assigned?: string, due?: string, priority?: string, assignee?: string } }`.
   - For image flair, `flair_value` is the file input field name (e.g., `flair_image_2_3`); the actual file is sent in the multipart form under that name.
 - Backend parsing:
   - The server now prefers `payload_json` and falls back to legacy dynamic field names (e.g., `task_1_2`) for backward compatibility.
@@ -168,6 +179,9 @@ Press `Ctrl+C` in the terminal where the application is running.
   - Config `emoji_font_path` (Setup page → Fonts), or
   - Env var `TASKPRINTER_EMOJI_FONT_PATH`.
 - If no emoji font is provided, the app attempts to auto-detect common paths. A basic substitution (e.g., ✅ → ✔) is applied for popular symbols to improve out-of-the-box results, but a proper font is preferred.
+- Recent emoji:
+  - When choosing flair type “Emoji”, a small “Recent…” dropdown appears next to the input.
+  - It caches your 12 most recent emoji selections in localStorage for quick reuse.
 
 ## Docs
 

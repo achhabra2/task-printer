@@ -249,3 +249,23 @@ Tests
 - Follow-ups:
   - Add pre-commit hook and CI job to run `scripts/validate_templates.py` and djlint.
   - Document StrictUndefined expectations in AGENTS.md and update examples to include `|default`.
+15) Emoji Flair + Emoji Rendering
+- Files: `task_printer/printing/emoji.py`, `task_printer/printing/render.py`, `task_printer/printing/worker.py`, `templates/_form_macros.html`, `static/js/app.js`
+- Added `emoji` as a flair type end-to-end; rasterizes emoji (monochrome preferred) and composes alongside text with a vertical separator.
+- Setup UI now includes Fonts section; supports `emoji_font_path` and auto-detection on save.
+- Health endpoint checks emoji rendering (`emoji_ok`); index shows a health badge (worker/printer/emoji).
+
+16) Recent Emoji (UI)
+- Files: `templates/_form_macros.html`, `static/js/app.js`
+- Small “Recent…” dropdown appears next to emoji input; keeps 12 most recent emoji in localStorage for quick reuse.
+
+17) Metadata Panel (Assigned/Due/Priority/Assignee)
+- Files: `task_printer/printing/metadata.py`, `task_printer/printing/worker.py`, `templates/_form_macros.html`, `static/js/app.js`, `task_printer/web/routes.py`
+- Prints a compact panel below the task with emojis: 📋 (assigned), 📅 (due), 👤 (assignee); priority as centered ⚡ icons (Normal=⚡, High=⚡⚡, Urgent=⚡⚡⚡).
+- UI has a Details toggle per task; date inputs default to today and include quick buttons: Today, +1d, +1w, +1m.
+- Server-side date validation accepts `YYYY-MM-DD`, `MM-DD`, or `MM/DD`.
+
+18) Templates Persistence — Metadata
+- Files: `task_printer/core/db.py`, `task_printer/web/templates.py`
+- DB schema (v2): tasks table adds `assigned`, `due`, `priority`, `assignee`. Migration adds columns to existing DBs.
+- Templates JSON includes `metadata` per task; printing from templates passes `meta` to the worker so metadata is rendered.

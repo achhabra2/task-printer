@@ -1,6 +1,6 @@
 # Phase 3 — Persistence Layer (Templates + Flair)
 
-This document describes a detailed plan to persist reusable task groupings ("templates") with sections, tasks, and flair (icon/image/QR), using SQLite. It covers schema design, data access patterns, API routes, UI flows, printing integration, validation, security, and ops concerns.
+This document describes a detailed plan to persist reusable task groupings ("templates") with sections, tasks, and flair (icon/image/QR/emoji), using SQLite. It covers schema design, data access patterns, API routes, UI flows, printing integration, validation, security, and ops concerns.
 
 ## Goals
 - Save/load reusable groupings so users don’t retype common lists.
@@ -47,15 +47,19 @@ CREATE TABLE IF NOT EXISTS sections (
 CREATE INDEX IF NOT EXISTS idx_sections_template ON sections(template_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sections_order ON sections(template_id, position);
 
--- tasks (with flair)
+-- tasks (with flair + metadata)
 CREATE TABLE IF NOT EXISTS tasks (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   section_id  INTEGER NOT NULL,
   text        TEXT NOT NULL,
   position    INTEGER NOT NULL,
-  flair_type  TEXT NOT NULL DEFAULT 'none',   -- 'none' | 'icon' | 'image' | 'qr' | 'barcode'
+  flair_type  TEXT NOT NULL DEFAULT 'none',   -- 'none' | 'icon' | 'image' | 'qr' | 'barcode' | 'emoji'
   flair_value TEXT,                           -- icon key, image path, qr payload, or JSON for barcode
   flair_size  INTEGER,                        -- optional pixel size hint
+  assigned    TEXT,                           -- optional date (ISO YYYY-MM-DD), displayed as MM-DD when printing
+  due         TEXT,                           -- optional date (ISO YYYY-MM-DD), displayed as MM-DD when printing
+  priority    TEXT,                           -- Normal | High | Urgent (printed as ⚡ icons)
+  assignee    TEXT,                           -- free-form name
   FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_section ON tasks(section_id);
@@ -70,6 +74,7 @@ Notes:
 
 ## Migrations
 - Initialize `schema_version` with `1` on bootstrap.
+- v2: add metadata columns (`assigned`, `due`, `priority`, `assignee`) and permit `emoji` flair type; update code to read/write these fields.
 - For future changes, run guarded `ALTER TABLE` or `CREATE INDEX IF NOT EXISTS` based on current version and bump.
 - Provide a lightweight `migrate(db)` that applies steps incrementally.
 
@@ -104,8 +109,8 @@ Notes:
     "notes": "Daily morning routine",
     "sections": [
       {"subtitle": "Kitchen", "position": 0, "tasks": [
-         {"text": "Wipe counter", "position": 0, "flair_type": "icon", "flair_value": "cleaning"},
-         {"text": "Run dishwasher", "position": 1}
+         {"text": "Wipe counter", "position": 0, "flair_type": "icon", "flair_value": "cleaning", "metadata": {"assigned": "2025-08-18", "due": "2025-08-18", "priority": "Normal", "assignee": "Aman"}},
+         {"text": "Run dishwasher", "position": 1, "flair_type": "emoji", "flair_value": "✅", "metadata": {"due": "2025-08-19", "priority": "High"}}
       ]}
     ]
   }
@@ -131,8 +136,9 @@ Notes:
 ## Printing Integration
 - Map stored structure → current print payload:
   - For each section: subtitle.
-  - For each task: `{subtitle, task, flair}`
+  - For each task: `{subtitle, task, flair, meta?}`
     - `flair`: `{type: 'icon'|'image'|'qr'|'barcode', value: string, size?: number}`
+    - `meta`: `{assigned?: string, due?: string, priority?: string, assignee?: string}`
   - Enqueue as a standard `tasks` job so the worker path remains unchanged.
 - Logging context: include `template_id` and `template_name` in job meta for traceability (shown in Jobs list and logs).
 
@@ -225,4 +231,3 @@ def create_template(name, notes, sections):
 
 ---
 This plan keeps persistence simple and reliable while integrating cleanly with the existing job queue and printing pipeline.
-

@@ -11,4 +11,5 @@ For convenience, common functions are re-exported for easy import.
 
 from .render import *
 from .emoji import *
+from .metadata import *
 from .worker import *

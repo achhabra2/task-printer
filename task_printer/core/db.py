@@ -31,7 +31,7 @@ except Exception:  # pragma: no cover - fallback if Flask import ever fails
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # Shared test connection for in-memory DB when running under Flask test app
 _DB_TEST_CONN: Optional[sqlite3.Connection] = None
@@ -58,7 +58,7 @@ def _has_control_chars(s: str) -> bool:
     return any((ord(c) < 32 and c not in "\n\r\t") or ord(c) == 127 for c in s)
 
 
-ALLOWED_FLAIR_TYPES = {"none", "icon", "image", "qr", "barcode"}
+ALLOWED_FLAIR_TYPES = {"none", "icon", "image", "qr", "barcode", "emoji"}
 
 
 class Flair(TypedDict, total=False):
@@ -319,6 +319,10 @@ def _ensure_schema(db: sqlite3.Connection) -> None:
               flair_type  TEXT NOT NULL DEFAULT 'none',
               flair_value TEXT,
               flair_size  INTEGER,
+              assigned    TEXT,
+              due         TEXT,
+              priority    TEXT,
+              assignee    TEXT,
               FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
             )
             """,
@@ -347,13 +351,28 @@ def _migrate(db: sqlite3.Connection, current: int, target: int) -> None:
     ver = int(current)
     with db:
         while ver < target:
-            # Future migrations go here, e.g.:
-            # if ver == 1:
-            #     db.execute("ALTER TABLE templates ADD COLUMN new_col TEXT")
-            #     ver = 2
-            #     db.execute("INSERT INTO schema_version (version) VALUES (?)", (ver,))
-            #     continue
-            # For now, nothing to do. Just bump to target to keep table consistent.
+            if ver == 1:
+                # Add metadata columns to tasks
+                try:
+                    db.execute("ALTER TABLE tasks ADD COLUMN assigned TEXT")
+                except Exception:
+                    pass
+                try:
+                    db.execute("ALTER TABLE tasks ADD COLUMN due TEXT")
+                except Exception:
+                    pass
+                try:
+                    db.execute("ALTER TABLE tasks ADD COLUMN priority TEXT")
+                except Exception:
+                    pass
+                try:
+                    db.execute("ALTER TABLE tasks ADD COLUMN assignee TEXT")
+                except Exception:
+                    pass
+                ver = 2
+                db.execute("INSERT INTO schema_version (version) VALUES (?)", (ver,))
+                continue
+            # No other migrations
             ver = target
             db.execute("INSERT INTO schema_version (version) VALUES (?)", (ver,))
 
@@ -396,10 +415,21 @@ def create_template(name: str, notes: Optional[str], sections: Iterable[SectionI
                 flair_size = t.get("flair_size")
                 db.execute(
                     """
-                    INSERT INTO tasks (section_id, text, position, flair_type, flair_value, flair_size)
-                    VALUES (?,?,?,?,?,?)
+                    INSERT INTO tasks (section_id, text, position, flair_type, flair_value, flair_size, assigned, due, priority, assignee)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
                     """,
-                    (sid, text, j, flair_type, flair_value, flair_size),
+                    (
+                        sid,
+                        text,
+                        j,
+                        flair_type,
+                        flair_value,
+                        flair_size,
+                        (t.get("metadata", {}) or {}).get("assigned") if isinstance(t.get("metadata"), dict) else None,
+                        (t.get("metadata", {}) or {}).get("due") if isinstance(t.get("metadata"), dict) else None,
+                        (t.get("metadata", {}) or {}).get("priority") if isinstance(t.get("metadata"), dict) else None,
+                        (t.get("metadata", {}) or {}).get("assignee") if isinstance(t.get("metadata"), dict) else None,
+                    ),
                 )
         return tid
 
@@ -425,6 +455,12 @@ def _rows_to_template_dict(trow: sqlite3.Row, sections_rows: List[sqlite3.Row]) 
                     "flair_type": r["flair_type"],
                     "flair_value": r["flair_value"],
                     "flair_size": r["flair_size"],
+                    "metadata": {
+                        "assigned": r["assigned"],
+                        "due": r["due"],
+                        "priority": r["priority"],
+                        "assignee": r["assignee"],
+                    },
                 },
             )
     ordered_sections = sorted(sections.values(), key=lambda s: s["position"])
@@ -536,10 +572,21 @@ def update_template(template_id: int, name: str, notes: Optional[str], sections:
                 flair_size = t.get("flair_size")
                 db.execute(
                     """
-                    INSERT INTO tasks (section_id, text, position, flair_type, flair_value, flair_size)
-                    VALUES (?,?,?,?,?,?)
+                    INSERT INTO tasks (section_id, text, position, flair_type, flair_value, flair_size, assigned, due, priority, assignee)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
                     """,
-                    (sid, text, j, flair_type, flair_value, flair_size),
+                    (
+                        sid,
+                        text,
+                        j,
+                        flair_type,
+                        flair_value,
+                        flair_size,
+                        (t.get("metadata", {}) or {}).get("assigned") if isinstance(t.get("metadata"), dict) else None,
+                        (t.get("metadata", {}) or {}).get("due") if isinstance(t.get("metadata"), dict) else None,
+                        (t.get("metadata", {}) or {}).get("priority") if isinstance(t.get("metadata"), dict) else None,
+                        (t.get("metadata", {}) or {}).get("assignee") if isinstance(t.get("metadata"), dict) else None,
+                    ),
                 )
         return True
 
@@ -597,10 +644,11 @@ def duplicate_template(template_id: int, new_name: Optional[str] = None) -> Opti
             )
             new_sid = int(cur.lastrowid)
             for t in sec.get("tasks", []):
+                md = t.get("metadata") if isinstance(t, dict) else None
                 db.execute(
                     """
-                    INSERT INTO tasks (section_id, text, position, flair_type, flair_value, flair_size)
-                    VALUES (?,?,?,?,?,?)
+                    INSERT INTO tasks (section_id, text, position, flair_type, flair_value, flair_size, assigned, due, priority, assignee)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
                         new_sid,
@@ -609,6 +657,10 @@ def duplicate_template(template_id: int, new_name: Optional[str] = None) -> Opti
                         t.get("flair_type"),
                         t.get("flair_value"),
                         t.get("flair_size"),
+                        (md or {}).get("assigned") if isinstance(md, dict) else None,
+                        (md or {}).get("due") if isinstance(md, dict) else None,
+                        (md or {}).get("priority") if isinstance(md, dict) else None,
+                        (md or {}).get("assignee") if isinstance(md, dict) else None,
                     ),
                 )
         return new_tid

@@ -175,4 +175,41 @@ flair_value=None) %}
 </div>
 
 {{ flair_row(section_id, task_num, icons, flair_type=flair_type,
-flair_value=flair_value) }} {% endmacro %}
+flair_value=flair_value) }}
+
+<div class="details mb-6">
+  <button type="button" class="toggle-details text-xs text-blue-700 dark:text-blue-300 underline">Details</button>
+  <div class="details-panel hidden mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+    <div>
+      <label class="block text-xs text-slate-600 dark:text-slate-300">Assigned date</label>
+      <div class="flex items-center gap-1.5">
+        <input type="date" name="detail_assigned_{{ section_id }}_{{ task_num }}" placeholder="YYYY-MM-DD" pattern="\\d{4}-\\d{2}-\\d{2}" class="detail-assigned w-full p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" />
+        <button type="button" class="btn-date-today text-xs px-2 py-1 rounded border dark:border-slate-600">Today</button>
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs text-slate-600 dark:text-slate-300">Due date</label>
+      <div class="flex items-center gap-1.5">
+        <input type="date" name="detail_due_{{ section_id }}_{{ task_num }}" placeholder="YYYY-MM-DD" pattern="\\d{4}-\\d{2}-\\d{2}" class="detail-due w-full p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" />
+        <button type="button" class="btn-date-today text-xs px-2 py-1 rounded border dark:border-slate-600">Today</button>
+        <button type="button" class="btn-date-plus1 text-xs px-2 py-1 rounded border dark:border-slate-600">+1d</button>
+        <button type="button" class="btn-date-plus1w text-xs px-2 py-1 rounded border dark:border-slate-600">+1w</button>
+        <button type="button" class="btn-date-plus1m text-xs px-2 py-1 rounded border dark:border-slate-600">+1m</button>
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs text-slate-600 dark:text-slate-300">Priority</label>
+      <select name="detail_priority_{{ section_id }}_{{ task_num }}" class="w-full p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600">
+        <option value="">(none)</option>
+        <option>Normal</option>
+        <option>High</option>
+        <option>Urgent</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-slate-600 dark:text-slate-300">Assignee</label>
+      <input type="text" name="detail_assignee_{{ section_id }}_{{ task_num }}" placeholder="Name" class="w-full p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" />
+    </div>
+  </div>
+</div>
+{% endmacro %}
