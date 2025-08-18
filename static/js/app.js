@@ -61,6 +61,9 @@
               <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
               <input type="text" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
               <input type="text" class="flair-emoji hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="Emoji (e.g., ✅)">
+              <select class="flair-emoji-recent hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" title="Recent emoji">
+                <option value="">Recent…</option>
+              </select>
             </div>
             <div class="flair-icon-picker hidden">
               <div class="icon-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 mt-2 p-3 sm:p-2 bg-gray-50 dark:bg-slate-700 rounded-lg border max-h-64 overflow-y-auto"></div>
@@ -77,6 +80,12 @@
   }
   function hide(el) {
     if (el) el.classList.add("hidden");
+  }
+  function bySel(root, sel) {
+    return (root || document).querySelector(sel);
+  }
+  function bySelAll(root, sel) {
+    return Array.from((root || document).querySelectorAll(sel));
   }
   function getCookie(name) {
     const value = `; ${document.cookie}`;
@@ -95,6 +104,77 @@
   // State
   let sectionCount = 0;
   const taskCounts = {}; // sectionId -> current task count
+  const EMOJI_KEY = "taskprinter:emoji_recents";
+  const EMOJI_MAX = 12; // limit to 12 most recent
+
+  function loadEmojiRecents() {
+    try {
+      const raw = localStorage.getItem(EMOJI_KEY);
+      if (!raw) return [];
+      const data = JSON.parse(raw);
+      const entries = Object.entries(data || {}).map(([k, v]) => ({
+        ch: k,
+        count: (v && v.count) || 0,
+        ts: (v && v.ts) || 0,
+      }));
+      // Sort by recency (timestamp desc) and take the 12 most recent
+      entries.sort((a, b) => b.ts - a.ts || b.count - a.count);
+      return entries.slice(0, EMOJI_MAX).map((e) => e.ch);
+    } catch {
+      return [];
+    }
+  }
+
+  function saveEmojiRecent(ch) {
+    if (!ch || typeof ch !== "string") return;
+    ch = ch.trim();
+    if (!ch) return;
+    let data = {};
+    try {
+      data = JSON.parse(localStorage.getItem(EMOJI_KEY) || "{}") || {};
+    } catch {
+      data = {};
+    }
+    const now = Date.now();
+    if (!data[ch]) data[ch] = { count: 0, ts: now };
+    data[ch].count += 1;
+    data[ch].ts = now;
+    // Prune to the 12 most recent entries by timestamp
+    try {
+      const entries = Object.entries(data).map(([k, v]) => ({ ch: k, ts: v.ts || 0, count: v.count || 0 }));
+      entries.sort((a, b) => b.ts - a.ts || b.count - a.count);
+      const pruned = entries.slice(0, EMOJI_MAX).reduce((acc, e) => {
+        acc[e.ch] = { count: data[e.ch].count, ts: data[e.ch].ts };
+        return acc;
+      }, {});
+      localStorage.setItem(EMOJI_KEY, JSON.stringify(pruned));
+    } catch {
+      localStorage.setItem(EMOJI_KEY, JSON.stringify(data));
+    }
+  }
+
+  function populateEmojiRecents(container) {
+    const recents = loadEmojiRecents();
+    const selects = container
+      ? bySelAll(container, ".flair-emoji-recent")
+      : bySelAll(document, ".flair-emoji-recent");
+    selects.forEach((sel) => {
+      // Clear and rebuild options
+      sel.innerHTML = "";
+      const opt0 = document.createElement("option");
+      opt0.value = "";
+      opt0.textContent = "Recent…";
+      sel.appendChild(opt0);
+      recents.forEach((em) => {
+        const o = document.createElement("option");
+        o.value = em;
+        o.textContent = em;
+        sel.appendChild(o);
+      });
+      if (recents.length > 0) show(sel);
+      else hide(sel);
+    });
+  }
 
   function initCounts() {
     const container = document.getElementById("subtitleSections");
@@ -193,6 +273,8 @@
     if (emojiInput) {
       emojiInput.name = `flair_emoji_${sectionId}_${taskNumber}`;
     }
+    // Populate emoji recents for this new row
+    populateEmojiRecents(flairRow);
 
     const iconPickerWrap = flairRow.querySelector(
       ".flair-icon-picker .icon-grid",
@@ -334,6 +416,7 @@
     const qrInput = row.querySelector(".flair-qr");
     const imgInput = row.querySelector(".flair-image");
     const emojiInput = row.querySelector(".flair-emoji");
+    const emojiRecent = row.querySelector(".flair-emoji-recent");
     const preview = row.querySelector(".flair-preview");
 
     if (sel.value === "icon") {
@@ -341,6 +424,7 @@
       hide(qrInput);
       hide(imgInput);
       if (emojiInput) hide(emojiInput);
+      if (emojiRecent) hide(emojiRecent);
       if (preview) {
         hide(preview);
         preview.src = "";
@@ -349,7 +433,9 @@
       hide(iconPicker);
       hide(qrInput);
       show(imgInput);
+      if (emojiRecent) hide(emojiRecent);
       if (emojiInput) hide(emojiInput);
+      if (emojiRecent) hide(emojiRecent);
     } else if (sel.value === "qr") {
       hide(iconPicker);
       show(qrInput);
@@ -364,6 +450,7 @@
       hide(qrInput);
       hide(imgInput);
       if (emojiInput) show(emojiInput);
+      if (emojiRecent) show(emojiRecent);
       if (preview) {
         hide(preview);
         preview.src = "";
@@ -373,6 +460,7 @@
       hide(qrInput);
       hide(imgInput);
       if (emojiInput) hide(emojiInput);
+      if (emojiRecent) hide(emojiRecent);
       if (preview) {
         hide(preview);
         preview.src = "";
@@ -552,6 +640,43 @@
         hide(preview);
       }
     });
+  }
+
+  // Emoji input handling: save to recents on change/blur; recent select applies to input
+  function handleEmojiInputs() {
+    document.addEventListener("change", function (e) {
+      const el = e.target;
+      if (!(el instanceof Element)) return;
+      if (el.classList.contains("flair-emoji")) {
+        const val = el.value || "";
+        if (val.trim()) {
+          saveEmojiRecent(val.trim());
+          populateEmojiRecents();
+        }
+      } else if (el.classList.contains("flair-emoji-recent")) {
+        const row = el.closest(".flair-row");
+        const emojiInput = row ? row.querySelector(".flair-emoji") : null;
+        const val = el.value || "";
+        if (emojiInput && val) {
+          emojiInput.value = val;
+          saveEmojiRecent(val);
+        }
+      }
+    });
+    document.addEventListener(
+      "blur",
+      function (e) {
+        const el = e.target;
+        if (!(el instanceof Element)) return;
+        if (el.classList.contains("flair-emoji")) {
+          const val = el.value || "";
+          if (val.trim()) {
+            saveEmojiRecent(val.trim());
+          }
+        }
+      },
+      true,
+    );
   }
 
   // Flair type change via event delegation
@@ -827,11 +952,13 @@
     });
 
     handleImagePreviewChange();
+    handleEmojiInputs();
     handleFlairTypeChange();
     attachPayloadOnSubmit();
     initJobStatusPolling();
     initHealthIndicator();
     wireSaveAsTemplateButton();
+    populateEmojiRecents();
 
     // Expose API for legacy inline handlers support
     window.TaskPrinter = {

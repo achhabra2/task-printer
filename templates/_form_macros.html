@@ -130,6 +130,12 @@ is_qr = (_ftype == 'qr') %} {% set is_emoji = (_ftype == 'emoji') %}
             placeholder="Emoji (e.g., ✅)"
             value="{% if is_emoji and flair_value %}{{ flair_value }}{% endif %}"
         />
+        <select
+            class="flair-emoji-recent {% if not is_emoji %}hidden{% endif %} p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+            title="Recent emoji"
+        >
+            <option value="">Recent…</option>
+        </select>
     </div>
 
     <div class="flair-icon-picker {% if not is_icon %}hidden{% endif %}">
