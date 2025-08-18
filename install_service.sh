@@ -54,6 +54,9 @@ if [ ! -f "$ENV_FILE" ]; then
 # Optional: override where config.json is stored
 # TASKPRINTER_CONFIG_PATH=
 
+# Fonts (optional)
+# TASKPRINTER_EMOJI_FONT_PATH=/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf
+
 # Logging options
 # TASKPRINTER_JSON_LOGS=false
 

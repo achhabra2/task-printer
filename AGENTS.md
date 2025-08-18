@@ -56,6 +56,7 @@ Runtime & config
   - `TASKPRINTER_CONFIG_PATH` — override config location
   - `TASKPRINTER_JSON_LOGS` — `true` to enable JSON-formatted logs in `task_printer.core.logging`
   - `TASKPRINTER_MEDIA_PATH` — storage for uploaded flair images
+  - `TASKPRINTER_EMOJI_FONT_PATH` — optional path to a monochrome emoji TTF (e.g., NotoEmoji-Regular)
   - `TASKPRINTER_MAX_UPLOAD_SIZE` — bytes for upload limit (default: 5 MiB)
   - `TASKPRINTER_MAX_CONTENT_LENGTH` — Flask `MAX_CONTENT_LENGTH` override (default: 1 MiB)
   - Limits family: `TASKPRINTER_MAX_SECTIONS`, `TASKPRINTER_MAX_TASKS_PER_SECTION`, `TASKPRINTER_MAX_TASK_LEN`, `TASKPRINTER_MAX_SUBTITLE_LEN`, `TASKPRINTER_MAX_TOTAL_CHARS`, `TASKPRINTER_MAX_QR_LEN`
@@ -89,11 +90,13 @@ Printing details
 - Connector selection is still driven by `printer_type` in config: `Usb`, `Network`, `Serial`. Profiles are passed through where appropriate.
 - Fonts and rendering:
   - `render.py` centralizes font resolution: it prefers `TASKPRINTER_FONT_PATH` or common system fonts; fallback to Pillow default if none found.
+  - `emoji.py` resolves an emoji-capable font: prefers `emoji_font_path` (config), `TASKPRINTER_EMOJI_FONT_PATH` (env), then common platform paths (Noto Emoji/OpenMoji-Black/Symbola), then falls back.
   - Text and layout are rendered to images to preserve typography before sending to the ESC/POS driver.
 - Flair:
   - `icon` picks from `static/icons/<key>.(png|jpg|jpeg|gif|bmp)` discovered by `task_printer.core.assets`.
   - `image` uploads are stored under `TASKPRINTER_MEDIA_PATH` and referenced by the worker.
   - `qr` payloads are printed using the ESC/POS driver's QR routines if available, otherwise rendered as an image.
+  - `emoji` is rasterized via `printing.emoji.rasterize_emoji` and composed like an icon.
 
 Tear-off mode
 - Per-print: the index page includes a number input "Tear-off delay (seconds)". When > 0, the worker suppresses cuts and sleeps between tasks.
@@ -106,7 +109,7 @@ Routes (now implemented as blueprints)
 - `POST /test_print` — queue a test print with saved config
 - `POST /restart` — exit process after responding (systemd will restart under service install)
 - `GET /jobs` — jobs list UI; `GET /jobs/<id>` — job status JSON (`task_printer.web.jobs:jobs_bp`)
-- `GET /healthz` — config/worker/printer status JSON (`task_printer.web.health:health_bp`)
+- `GET /healthz` — config/worker/printer/emoji status JSON (`task_printer.web.health:health_bp`). A small health badge appears on the Index page.
 
 Coding guidelines for agents
 - Use `create_app(...)` when writing tests. You can pass `register_worker=False` to avoid the background worker in unit tests.
@@ -138,7 +141,7 @@ We use Tailwind (Option A, CDN) for layout and styling consistency and provide J
   - `topbar(title=None, actions=None, show_theme_toggle=True)`: page-level header. `actions` is a list of `{label, href, variant, icon, size}` dicts; includes a working theme toggle.
 - Form Macros (new): defined in `templates/_form_macros.html`
   - `icon_picker(name, icons, selected=None)` — renders icon radio grid (uses files under `static/icons`).
-  - `flair_row(section_id, task_num, icons, flair_type='none', flair_value=None)` — renders flair selector + inputs (icon/image/QR).
+  - `flair_row(section_id, task_num, icons, flair_type='none', flair_value=None)` — renders flair selector + inputs (icon/image/QR/emoji).
   - `task_row(section_id, task_num, icons, text='', flair_type='none', flair_value=None)` — renders a task input and its flair row.
 - Usage pattern:
   - Import components: `{% from "_components.html" import topbar, btn, flash_messages, card %}`
@@ -162,6 +165,7 @@ Frontend structure (post-refactor)
   - On submit, attaches a hidden `<input name="payload_json">` containing a JSON representation of sections/tasks to simplify backend parsing. Image files remain in the multipart form and are referenced by field name in the JSON.
 - Server parsing prefers `payload_json` and falls back to legacy dynamic field names for backward compatibility. Image flair resolution:
   - If `flair_type == "image"`, the backend uses `flair_value` as the upload field name (e.g., `flair_image_2_3`) to read `request.files[field]`. If missing, it falls back to `flair_image_{i}_{j}`.
+  - If `flair_type == "emoji"`, the backend expects a short string value (emoji); it's rasterized server-side.
 
 Quality & linting
 - We plan to enforce template correctness using `djlint` (HTML/Jinja linter) in CI alongside `scripts/validate_templates.py`.
@@ -201,6 +205,8 @@ Dev setup (how to run locally)
 
 Config keys (selected)
 - `default_tear_delay_seconds`: Optional float (0–60). When set, template prints use this value to enable tear-off mode by default, and the index page preloads it in the tear-off input; users can override per print.
+- `emoji_font_path`: Optional absolute path to a monochrome emoji TTF for ESC/POS.
+- `emoji_font_size`: Optional int; defaults to `flair_target_height` when rasterizing emoji.
 
 Definition of done for changes
 - No `print()` statements; use `app.logger`.

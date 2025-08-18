@@ -55,10 +55,12 @@
                 <option value="icon">Icon</option>
                 <option value="image">Image</option>
                 <option value="qr">QR</option>
+                <option value="emoji">Emoji</option>
               </select>
               <input type="file" class="flair-image hidden" accept="image/*">
               <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
               <input type="text" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
+              <input type="text" class="flair-emoji hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="Emoji (e.g., ✅)">
             </div>
             <div class="flair-icon-picker hidden">
               <div class="icon-grid grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 mt-2 p-3 sm:p-2 bg-gray-50 dark:bg-slate-700 rounded-lg border max-h-64 overflow-y-auto"></div>
@@ -187,6 +189,10 @@
 
     const qrInput = flairRow.querySelector(".flair-qr");
     qrInput.name = `flair_qr_${sectionId}_${taskNumber}`;
+    const emojiInput = flairRow.querySelector(".flair-emoji");
+    if (emojiInput) {
+      emojiInput.name = `flair_emoji_${sectionId}_${taskNumber}`;
+    }
 
     const iconPickerWrap = flairRow.querySelector(
       ".flair-icon-picker .icon-grid",
@@ -312,6 +318,7 @@
           .replace(/^(flair_type_\d+_)\d+$/, `$1${newNum}`)
           .replace(/^(flair_image_\d+_)\d+$/, `$1${newNum}`)
           .replace(/^(flair_qr_\d+_)\d+$/, `$1${newNum}`)
+          .replace(/^(flair_emoji_\d+_)\d+$/, `$1${newNum}`)
           .replace(/^(flair_icon_\d+_)\d+$/, `$1${newNum}`);
       });
     });
@@ -326,12 +333,14 @@
     const iconPicker = row.querySelector(".flair-icon-picker");
     const qrInput = row.querySelector(".flair-qr");
     const imgInput = row.querySelector(".flair-image");
+    const emojiInput = row.querySelector(".flair-emoji");
     const preview = row.querySelector(".flair-preview");
 
     if (sel.value === "icon") {
       show(iconPicker);
       hide(qrInput);
       hide(imgInput);
+      if (emojiInput) hide(emojiInput);
       if (preview) {
         hide(preview);
         preview.src = "";
@@ -340,10 +349,21 @@
       hide(iconPicker);
       hide(qrInput);
       show(imgInput);
+      if (emojiInput) hide(emojiInput);
     } else if (sel.value === "qr") {
       hide(iconPicker);
       show(qrInput);
       hide(imgInput);
+      if (emojiInput) hide(emojiInput);
+      if (preview) {
+        hide(preview);
+        preview.src = "";
+      }
+    } else if (sel.value === "emoji") {
+      hide(iconPicker);
+      hide(qrInput);
+      hide(imgInput);
+      if (emojiInput) show(emojiInput);
       if (preview) {
         hide(preview);
         preview.src = "";
@@ -352,6 +372,7 @@
       hide(iconPicker);
       hide(qrInput);
       hide(imgInput);
+      if (emojiInput) hide(emojiInput);
       if (preview) {
         hide(preview);
         preview.src = "";
@@ -424,6 +445,12 @@
               flairRow.querySelector(`input[name="flair_qr_${sid}_${tnum}"]`) ||
               flairRow.querySelector(".flair-qr");
             flair_value = qr ? (qr.value || "").trim() : null;
+            if (!flair_value) flair_type = "none";
+          } else if (flair_type === "emoji") {
+            const em =
+              flairRow.querySelector(`input[name="flair_emoji_${sid}_${tnum}"]`) ||
+              flairRow.querySelector(".flair-emoji");
+            flair_value = em ? (em.value || "").trim() : null;
             if (!flair_value) flair_type = "none";
           } else if (flair_type === "image") {
             // Include the file input field name so the backend can associate the upload.
@@ -582,6 +609,40 @@
     }
   }
 
+  // Health indicator (fetches /healthz and updates a small badge)
+  function initHealthIndicator() {
+    const el = document.getElementById("healthStatus");
+    if (!el) return;
+    fetch("/healthz")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!j) return;
+        const ok = j.status === "ok";
+        const worker = j.worker_alive ? "alive" : "down";
+        const printer = j.printer_ok ? "ok" : "fail";
+        const emoji = j.emoji_ok ? "ok" : "fail";
+        el.textContent = `Health: ${ok ? "OK" : j.status} — worker:${worker} printer:${printer} emoji:${emoji}`;
+        el.classList.remove(
+          "bg-slate-200",
+          "text-slate-800",
+          "bg-red-200",
+          "text-red-900",
+          "bg-yellow-200",
+          "text-yellow-900",
+          "bg-green-200",
+          "text-green-900",
+        );
+        if (ok) {
+          el.classList.add("bg-green-200", "text-green-900");
+        } else {
+          el.classList.add("bg-yellow-200", "text-yellow-900");
+        }
+      })
+      .catch(() => {
+        el.textContent = "Health: unknown";
+      });
+  }
+
   // Wire Save as Template button
   function wireSaveAsTemplateButton() {
     const saveBtn = document.getElementById("saveTplBtn");
@@ -617,6 +678,11 @@
         `input[name="flair_qr_${sid}_${tnum}"]`,
       );
       if (qr) qr.value = String(fval);
+    } else if (ftype === "emoji" && fval != null) {
+      const em = sectionDiv.querySelector(
+        `input[name="flair_emoji_${sid}_${tnum}"]`,
+      );
+      if (em) em.value = String(fval);
     }
     // images cannot be prefilled due to browser file input restrictions
   }
@@ -764,6 +830,7 @@
     handleFlairTypeChange();
     attachPayloadOnSubmit();
     initJobStatusPolling();
+    initHealthIndicator();
     wireSaveAsTemplateButton();
 
     // Expose API for legacy inline handlers support

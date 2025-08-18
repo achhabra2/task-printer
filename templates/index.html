@@ -12,6 +12,11 @@ import task_row, flair_row, icon_picker %}
           {% for ic in icons %}{ name: "{{ ic.name }}", url: "{{ url_for('static', filename=ic.filename) }}" }{% if not loop.last %},{% endif %}{% endfor %}
         ];
     </script>
+    <!-- Health badge sits above the top bar to avoid interfering with buttons -->
+    <div class="flex justify-end mt-3">
+        <span id="healthStatus" class="px-2 py-1 rounded text-xs bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-200">Health: …</span>
+    </div>
+
     <div class="flex items-center justify-between gap-2 my-4 flex-wrap">
         <div class="flex items-center gap-2 flex-wrap">
             {{ btn("🧾 Jobs", href="/jobs", variant="outline", size="sm") }} {{

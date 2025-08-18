@@ -25,7 +25,12 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from task_printer.core.assets import resolve_icon_path
 from task_printer.core.config import load_config
-from task_printer.printing.render import render_large_text_image, render_task_with_flair_image, resolve_font
+from task_printer.printing.render import (
+    render_large_text_image,
+    render_task_with_flair_image,
+    render_task_with_emoji,
+    resolve_font,
+)
 
 # Types
 SubtitleTask = Union[
@@ -227,6 +232,9 @@ def _print_subtitle_task_item(
                     logger.warning(f"Image not found for task {idx}: {fval}")
                 if flair_src is not None:
                     combined_img = render_task_with_flair_image(task.strip(), flair_src, config)
+            elif ftype == "emoji" and fval:
+                # Compose using emoji rasterization path
+                combined_img = render_task_with_emoji(task.strip(), fval, config)
             elif ftype == "qr" and fval:
                 p.qr(fval)
         except Exception as e:

@@ -145,6 +145,17 @@ def index():
                             if fval:
                                 # Tolerate unknown icon name; do not hard fail
                                 flair = {"type": "icon", "value": fval}
+                        elif ftype == "emoji":
+                            if isinstance(fval, str) and fval.strip():
+                                ev = fval.strip()
+                                # Basic validation: limit length and control chars
+                                if len(ev) > 16:
+                                    raise ValueError(
+                                        f"Emoji value too long in section {s_idx} task {t_idx} (max 16).",
+                                    )
+                                if _has_control_chars(ev):
+                                    raise ValueError("Emoji cannot contain control characters.")
+                                flair = {"type": "emoji", "value": ev}
                         elif ftype == "qr":
                             if fval:
                                 q = str(fval)
@@ -238,6 +249,20 @@ def index():
                     icon_key = (form.get(f"flair_icon_{section}_{task_num}", "") or "").strip()
                     if icon_key:
                         flair = {"type": "icon", "value": icon_key}
+
+                elif ftype == "emoji":
+                    emoji_val = (form.get(f"flair_emoji_{section}_{task_num}", "") or "").strip()
+                    if emoji_val:
+                        if len(emoji_val) > 16:
+                            flash(
+                                f"Emoji too long in section {section} task {task_num} (max 16).",
+                                "error",
+                            )
+                            return redirect(url_for("web.index"))
+                        if _has_control_chars(emoji_val):
+                            flash("Emoji cannot contain control characters.", "error")
+                            return redirect(url_for("web.index"))
+                        flair = {"type": "emoji", "value": emoji_val}
 
                 elif ftype == "qr":
                     qr_val = (form.get(f"flair_qr_{section}_{task_num}", "") or "").strip()

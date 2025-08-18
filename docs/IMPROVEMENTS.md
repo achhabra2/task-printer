@@ -11,6 +11,19 @@ This document outlines potential future improvements, grouped by impact and area
 - **Behavior**: Only affects text that would wrap into 2 lines with small overflow. Long text that genuinely needs multiple lines continues to wrap normally.
 - **Benefits**: Cleaner appearance for short task names, better space utilization, maintains readability.
 
+### Emoji Flair Rendering
+- **New flair type**: `emoji` enables per-task emoji rendered alongside text, composed like icons/images.
+- **Monochrome fonts**: Prefer and auto-detect monochrome emoji fonts (Noto Emoji, OpenMoji-Black, Symbola) for ESC/POS compatibility.
+- **Setup integration**: Fonts section in Setup lets you specify `emoji_font_path`; auto-detects common paths if left blank.
+- **Worker support**: End-to-end wiring so `{"type":"emoji","value":"✅"}` prints correctly.
+
+### Health Endpoint + Badge
+- **/healthz** now reports: worker status, queue size, printer reachability, and `emoji_ok` status.
+- **UI badge**: A small health badge appears at the top of the Index page summarizing worker/printer/emoji.
+
+### Fedora Setup
+- **setup_fedora.sh**: Installs `google-noto-emoji-fonts` along with existing dependencies; still supports interactive/non-interactive modes.
+
 ## New: Templates (Saved task sets)
 - We added a SQLite-backed Templates feature so you can save, list, load, edit, duplicate, delete, and print grouped tasks with optional flair (icon/image/QR).
 - Where to find it:
@@ -38,7 +51,7 @@ This document outlines potential future improvements, grouped by impact and area
 - Subtitle rendering: Render subtitles as images (like tasks) for consistent typography and code-page independence.
 - Timeouts/retries: Wrap print calls with timeouts, limited retries, and device reconnects.
 - `lsusb` fallback: If not available, attempt `pyusb` enumeration; otherwise show a helpful message.
-- Health endpoint: Add `/healthz` to confirm app readiness; include simple checks (config present, worker alive).
+- Health endpoint: `/healthz` implemented and extended with emoji rendering checks; surfaced in the UI.
 
 ## UX & Accessibility
 

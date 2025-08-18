@@ -39,8 +39,9 @@ Recent frontend refactor: the dynamic form UI is now driven by small Jinja form 
    ```
 2. **Install Python dependencies system-wide:**
    ```bash
-   sudo pip3 install -r requirements.txt
-   ```
+  sudo pip3 install -r requirements.txt
+  ```
+  - Fedora helper: `./scripts/setup_fedora.sh --yes` will install system packages (including emoji fonts) and set up a venv with requirements.
 3. **Plug in your receipt printer:**
    - For USB: Connect the printer to your Raspberry Pi via USB.
    - For network: Ensure the printer is on the same network and you know its IP address.
@@ -152,11 +153,21 @@ Press `Ctrl+C` in the terminal where the application is running.
 - Global default tear‑off delay: set `default_tear_delay_seconds` in `config.json` (0–60). When set, template prints use this value by default and the Index page preloads it into the tear‑off input. Users can override it per print.
 - Frontend JSON payload:
   - On submit, the index form adds a hidden input `payload_json` containing `{ sections: [...] }`, where each section has `subtitle` and an array of `tasks`.
-  - Each task may include flair: `{ flair_type: "none" | "icon" | "image" | "qr", flair_value: string | null }`.
+  - Each task may include flair: `{ flair_type: "none" | "icon" | "image" | "qr" | "emoji", flair_value: string | null }`.
   - For image flair, `flair_value` is the file input field name (e.g., `flair_image_2_3`); the actual file is sent in the multipart form under that name.
 - Backend parsing:
   - The server now prefers `payload_json` and falls back to legacy dynamic field names (e.g., `task_1_2`) for backward compatibility.
   - Server-side validation enforces section/task limits, text/QR length, total character limits, and rejects control characters.
+  - Emoji flair uses a monochrome emoji font for rasterization when configured.
+
+### Emoji Rendering
+
+- For reliable emoji on thermal printers, use a monochrome emoji font.
+- Recommended fonts: Noto Emoji (monochrome), OpenMoji-Black, or Symbola.
+- Set via either:
+  - Config `emoji_font_path` (Setup page → Fonts), or
+  - Env var `TASKPRINTER_EMOJI_FONT_PATH`.
+- If no emoji font is provided, the app attempts to auto-detect common paths. A basic substitution (e.g., ✅ → ✔) is applied for popular symbols to improve out-of-the-box results, but a proper font is preferred.
 
 ## Docs
 

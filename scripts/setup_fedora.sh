@@ -16,7 +16,8 @@ Options:
   --no-uv    Do not use 'uv' even if available; use python venv instead
 
 Environment:
-  TASKPRINTER_FONT_PATH  Optional path to a TTF font for printing
+  TASKPRINTER_FONT_PATH         Optional path to a TTF font for printing
+  TASKPRINTER_EMOJI_FONT_PATH   Optional path to a monochrome emoji TTF
 USAGE
 }
 
@@ -37,7 +38,8 @@ if ! command -v dnf >/dev/null 2>&1; then
 fi
 
 echo "==> Checking system dependencies"
-PKGS=(python3 gcc libusb1 usbutils dejavu-sans-fonts libjpeg-turbo-devel zlib-devel freetype-devel)
+# Added google-noto-emoji-fonts to ensure emoji glyphs render on thermal printers
+PKGS=(python3 gcc libusb1 usbutils dejavu-sans-fonts libjpeg-turbo-devel zlib-devel freetype-devel google-noto-emoji-fonts)
 MISSING=()
 for p in "${PKGS[@]}"; do
   if ! rpm -q "$p" >/dev/null 2>&1; then
@@ -126,6 +128,10 @@ except Exception as e:
   ok = False
   print(f"[err] PIL font check failed: {e}")
 
+# Optional: note emoji font env if set
+if os.environ.get("TASKPRINTER_EMOJI_FONT_PATH"):
+  print(f"[ok] TASKPRINTER_EMOJI_FONT_PATH set: {os.environ['TASKPRINTER_EMOJI_FONT_PATH']}")
+
 sys.exit(0 if ok else 1)
 PY
 
@@ -142,5 +148,5 @@ echo "  2) Run the app:      ./start.sh    (or: python3 app.py)"
 echo "  3) Open in browser:  http://localhost:5000"
 echo "\nOptional:"
 echo "  - Set TASKPRINTER_FONT_PATH to a TTF path for clearer prints"
+echo "  - Set TASKPRINTER_EMOJI_FONT_PATH to a monochrome emoji TTF (e.g., /usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf)"
 echo "  - Use ./install_service.sh to run as a systemd service"
-

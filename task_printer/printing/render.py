@@ -16,6 +16,7 @@ from typing import List, Optional
 from PIL import Image, ImageDraw, ImageFont
 
 from task_printer.core.config import load_config as load_app_config
+from task_printer.printing.emoji import rasterize_emoji
 
 logger = logging.getLogger(__name__)
 
@@ -615,4 +616,42 @@ def render_task_with_flair_image(
     return out_img
 
 
-__all__ = ["render_large_text_image", "render_task_with_flair_image", "resolve_font", "wrap_text"]
+def render_task_with_emoji(
+    text: str,
+    emoji: str,
+    config: Optional[Mapping[str, object]] = None,
+) -> Image.Image:
+    """
+    Compose a task with a rasterized emoji instead of an icon image.
+
+    This leverages the same composition logic as `render_task_with_flair_image`
+    by first rasterizing the given emoji string to an image and then composing
+    the text + separator + emoji image.
+
+    Args:
+        text: The task text to render (wrapped).
+        emoji: The emoji string (may include skin tone modifiers, etc.).
+        config: Optional config mapping.
+
+    Returns:
+        A single 'L' mode PIL Image ready for ESC/POS printing.
+    """
+    cfg = config or load_app_config()
+    if cfg is None:
+        raise RuntimeError("No config found. Please complete setup at /setup.")
+    # Use the same target height the flair pipeline expects so downstream scaling
+    # is minimized; composition will still size appropriately if needed.
+    try:
+        target_h = int(cfg.get("flair_target_height", 256))
+    except Exception:
+        target_h = 256
+    emoji_img = rasterize_emoji(emoji, target_height=target_h, config=cfg)
+    return render_task_with_flair_image(text, emoji_img, cfg)
+
+__all__ = [
+    "render_large_text_image",
+    "render_task_with_flair_image",
+    "render_task_with_emoji",
+    "resolve_font",
+    "wrap_text",
+]

@@ -202,6 +202,33 @@ def setup():
         if max_font_size < min_font_size:
             max_font_size = min_font_size + 8
 
+        # Optional font paths
+        font_path = (form.get("font_path", "") or "").strip()
+        emoji_font_path = (form.get("emoji_font_path", "") or "").strip()
+        if not emoji_font_path:
+            # Try to auto-detect a reasonable monochrome emoji font across platforms
+            home = os.path.expanduser("~")
+            common_emoji_paths = [
+                # Linux
+                "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
+                "/usr/share/fonts/truetype/noto/NotoEmoji.ttf",
+                "/usr/local/share/fonts/NotoEmoji-Regular.ttf",
+                "/usr/share/fonts/opentype/openmoji/OpenMoji-Black.ttf",
+                "/usr/share/fonts/truetype/ancient-scripts/Symbola.ttf",
+                # macOS (Font Book / system)
+                "/Library/Fonts/NotoEmoji-Regular.ttf",
+                "/Library/Fonts/Noto Emoji.ttf",
+                os.path.join(home, "Library/Fonts/NotoEmoji-Regular.ttf"),
+                os.path.join(home, "Library/Fonts/Noto Emoji.ttf"),
+            ]
+            for p in common_emoji_paths:
+                try:
+                    if p and os.path.exists(p):
+                        emoji_font_path = p
+                        break
+                except Exception:
+                    continue
+
         config = {
             "printer_type": printer_type,
             "usb_vendor_id": usb_vendor_id,
@@ -234,6 +261,9 @@ def setup():
             "enable_dynamic_font_sizing": enable_dynamic_font_sizing,
             "min_font_size": min_font_size,
             "max_font_size": max_font_size,
+            # Optional font paths
+            "font_path": font_path or None,
+            "emoji_font_path": emoji_font_path or None,
         }
 
         # Persist to the current resolved config path to honor per-test env overrides

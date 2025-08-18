@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 from flask import Blueprint
 
 from task_printer.core.config import load_config
+from task_printer.printing.emoji import rasterize_emoji
 from task_printer.printing.worker import worker_status
 
 health_bp = Blueprint("health", __name__)
@@ -83,5 +84,23 @@ def healthz():
         status["status"] = "degraded"
         if reason:
             status["reason"] = reason
+
+    # Emoji font/glyph sanity check
+    try:
+        sample = str(cfg.get("emoji_health_sample", "✅"))
+        img = rasterize_emoji(sample, target_height=64, config=cfg)
+        ok_emoji = bool(img and img.getbbox())
+        status["emoji_ok"] = ok_emoji
+        if not ok_emoji and status.get("status") == "ok":
+            status["status"] = "degraded"
+            status["reason"] = "emoji_unavailable"
+        # Surface configured path if present
+        if cfg.get("emoji_font_path"):
+            status["emoji_font_path"] = cfg.get("emoji_font_path")
+    except Exception:
+        status["emoji_ok"] = False
+        if status.get("status") == "ok":
+            status["status"] = "degraded"
+            status["reason"] = "emoji_check_failed"
 
     return status, 200
