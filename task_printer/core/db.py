@@ -488,8 +488,19 @@ def get_template(template_id: int) -> Optional[Dict[str, Any]]:
     cur = db.execute(
         """
         SELECT
-            s.id AS section_id, s.subtitle, s.position AS s_pos,
-            t.id AS task_id, t.text, t.position AS t_pos, t.flair_type, t.flair_value, t.flair_size
+            s.id AS section_id,
+            s.subtitle,
+            s.position AS s_pos,
+            t.id AS task_id,
+            t.text,
+            t.position AS t_pos,
+            t.flair_type,
+            t.flair_value,
+            t.flair_size,
+            t.assigned,
+            t.due,
+            t.priority,
+            t.assignee
         FROM sections s
         LEFT JOIN tasks t ON t.section_id = s.id
         WHERE s.template_id = ?
