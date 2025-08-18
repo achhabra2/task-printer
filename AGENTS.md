@@ -38,8 +38,13 @@ Repository map (refactored)
     - `worker.py` — print queue + background worker (`ensure_worker`, queue API)
 - `templates/` — Jinja templates (kept at repo root for easy editing).
   - `_components.html` — cohesive UI macros for a consistent look-and-feel (see “Frontend & Theming”).
+  - `_form_macros.html` — form macros used by the index page to DRY up repeated markup:
+    - `icon_picker(name, icons, selected=None)`
+    - `flair_row(section_id, task_num, icons, flair_type='none', flair_value=None)`
+    - `task_row(section_id, task_num, icons, text='', flair_type='none', flair_value=None)`
 - `static/` — JS/CSS/icons and other static assets (kept at repo root).
   - `styles/app.css` — minimal custom tokens (brand colors), spinner animation, and small overrides complementing Tailwind CSS.
+  - `js/app.js` — the frontend module powering dynamic form behaviors (add/remove sections/tasks, flair toggles, image preview, job polling, save-as-template, prefill, and payload_json submission).
 - `docs/` — design docs such as persistence plans and deployment notes.
 - `start.sh`, `install_service.sh`, `Dockerfile`, `requirements.txt` — runtime helpers remain at repo root.
 
@@ -131,8 +136,13 @@ We use Tailwind (Option A, CDN) for layout and styling consistency and provide J
   - `flash(category, message)` / `flash_messages(messages)`: consistent flash banners for `success`, `error`, `warning`, `info`.
   - `card(title=None, subtitle=None, actions=None)`: card wrapper with optional header/actions. Use with `{% call card(...) %} ... {% endcall %}` for the body.
   - `topbar(title=None, actions=None, show_theme_toggle=True)`: page-level header. `actions` is a list of `{label, href, variant, icon, size}` dicts; includes a working theme toggle.
+- Form Macros (new): defined in `templates/_form_macros.html`
+  - `icon_picker(name, icons, selected=None)` — renders icon radio grid (uses files under `static/icons`).
+  - `flair_row(section_id, task_num, icons, flair_type='none', flair_value=None)` — renders flair selector + inputs (icon/image/QR).
+  - `task_row(section_id, task_num, icons, text='', flair_type='none', flair_value=None)` — renders a task input and its flair row.
 - Usage pattern:
-  - Import: `{% from "_components.html" import topbar, btn, flash_messages, card %}`
+  - Import components: `{% from "_components.html" import topbar, btn, flash_messages, card %}`
+  - Import form macros: `{% from "_form_macros.html" import task_row, flair_row, icon_picker %}`
   - Topbar: `{{ topbar(title="My Page", actions=[{'label':'Jobs','href':'/jobs','variant':'outline'}]) }}`
   - Card: `{% call card(title="Settings") %} ... {% endcall %}`
   - Button: `{{ btn("Save", variant="primary", type="submit") }}`
@@ -142,6 +152,21 @@ Migration notes (Option A):
 - Inline `<style>` blocks have been removed or minimized from templates and replaced with Tailwind classes and macros.
 - `index.html`, `jobs.html`, `templates.html`, `loading.html`, and `setup.html` have been converted to use utilities and macros for cohesive styling.
 - For production builds, consider Option B (Tailwind build step with purge/minify) as described in `docs/THEMING.md`.
+
+Frontend structure (post-refactor)
+- Dynamic UI logic moved to a static module: `static/js/app.js` (loaded in `templates/base.html` via `<script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>`). This module:
+  - Adds and removes subtitle sections and tasks using DOM templates and cloneNode.
+  - Toggles flair controls (icon/image/QR), previews image uploads, and polls job status.
+  - Saves current form as a template via JSON.
+  - Rebuilds the form from saved templates (prefill) using three sources: server-injected `window.__PREFILL_TEMPLATE`, `localStorage`, or `?prefill=<id>` fetch.
+  - On submit, attaches a hidden `<input name="payload_json">` containing a JSON representation of sections/tasks to simplify backend parsing. Image files remain in the multipart form and are referenced by field name in the JSON.
+- Server parsing prefers `payload_json` and falls back to legacy dynamic field names for backward compatibility. Image flair resolution:
+  - If `flair_type == "image"`, the backend uses `flair_value` as the upload field name (e.g., `flair_image_2_3`) to read `request.files[field]`. If missing, it falls back to `flair_image_{i}_{j}`.
+
+Quality & linting
+- We plan to enforce template correctness using `djlint` (HTML/Jinja linter) in CI alongside `scripts/validate_templates.py`.
+- We also plan to enable Jinja `StrictUndefined` to surface missing variables at render time. When adopting, prefer `|default` filters or `or ''` for optional fields in templates.
+- PRs touching templates should run `uv run scripts/validate_templates.py` locally and address djlint findings.
 
 Extending the app
 - Adding new HTTP endpoints:

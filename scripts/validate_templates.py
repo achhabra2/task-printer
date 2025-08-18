@@ -20,6 +20,8 @@ Exit code:
 from __future__ import annotations
 
 import argparse
+import shutil
+import subprocess
 import sys
 from collections.abc import Iterable
 from fnmatch import fnmatch
@@ -181,12 +183,41 @@ def _default_context_for(name: str) -> Dict:
             {
                 "job_id": "deadbeefcafebabe12345678",
                 "icons": _dummy_icons(),
+                # StrictUndefined guards
+                "prefill_template": None,
+                "default_tear_delay": 0,
             },
         )
     elif name == "setup.html":
+        cfg = _dummy_config()
+        # Provide extra keys accessed in setup.html under StrictUndefined
+        cfg.setdefault("tear_feed_lines", cfg.get("cut_feed_lines", 2))
+        cfg.setdefault("default_tear_delay_seconds", 0)
+        cfg.setdefault("print_separators", True)
+        # Margins used in setup form when StrictUndefined is enabled
+        cfg.setdefault("print_left_margin", 0)
+        cfg.setdefault("print_right_margin", 0)
+        cfg.setdefault("print_top_margin", 0)
+        cfg.setdefault("print_bottom_margin", 0)
+        cfg.setdefault("text_safety_margin", 0)
+        # Font and sizing defaults referenced in setup.html
+        cfg.setdefault("min_font_size", 18)
+        cfg.setdefault("max_font_size", 48)
+        cfg.setdefault("enable_dynamic_font_sizing", True)
+        cfg.setdefault("max_overflow_chars_for_dynamic_sizing", 3)
+        cfg.setdefault("flair_separator_width", cfg.get("flair_separator_width", 3))
+        cfg.setdefault("flair_separator_gap", cfg.get("flair_separator_gap", 14))
+        cfg.setdefault("flair_col_width", cfg.get("flair_col_width", 256))
+        cfg.setdefault("flair_target_height", cfg.get("flair_target_height", 256))
+        cfg.setdefault("min_text_width", cfg.get("min_text_width", 230))
+        # Network and Serial defaults for setup form
+        cfg.setdefault("network_ip", "")
+        cfg.setdefault("network_port", 9100)
+        cfg.setdefault("serial_port", "/dev/ttyUSB0")
+        cfg.setdefault("serial_baudrate", 19200)
         base.update(
             {
-                "config": _dummy_config(),
+                "config": cfg,
                 "usb_devices": _dummy_usb_devices(),
                 "icons": _dummy_icons(),
                 "show_close": True,
@@ -260,6 +291,26 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     # Make sure we can import task_printer
     _ensure_sys_path()
+
+    # Optionally run djlint (if installed) to lint templates before rendering
+    try:
+        templates_dir = _project_root() / "templates"
+        djlint_bin = shutil.which("djlint")
+        if djlint_bin and templates_dir.exists():
+            cmd = [djlint_bin, str(templates_dir), "--profile=jinja"]
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if proc.returncode != 0:
+                print("[djlint] Lint failed:", file=sys.stderr)
+                if proc.stdout:
+                    print(proc.stdout.strip(), file=sys.stderr)
+                if proc.stderr:
+                    print(proc.stderr.strip(), file=sys.stderr)
+                return 1
+        else:
+            # djlint not installed or templates dir missing; skip lint step
+            pass
+    except Exception as e:
+        print(f"[djlint] Skipped due to error: {e}", file=sys.stderr)
 
     # Build app
     try:

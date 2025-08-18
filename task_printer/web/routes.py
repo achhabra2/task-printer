@@ -15,18 +15,18 @@ Responsibilities extracted from the monolithic app:
 - Enqueue background jobs and surface job status via banner
 """
 
+import json
 import os
 import uuid
 from typing import Any, Dict, List, Optional
-import json
 
 from flask import Blueprint, current_app, flash, g, redirect, render_template, request, url_for
 from werkzeug.utils import secure_filename
 
 from task_printer import csrf
-from task_printer.core.assets import IMAGE_EXTS, get_available_icons, is_supported_image
 from task_printer.core import db as dbh
-from task_printer.core.config import MEDIA_PATH, load_config, get_config_path
+from task_printer.core.assets import IMAGE_EXTS, get_available_icons, is_supported_image
+from task_printer.core.config import MEDIA_PATH, get_config_path, load_config
 from task_printer.printing.worker import enqueue_tasks, enqueue_test_print, ensure_worker
 
 web_bp = Blueprint("web", __name__)
@@ -77,9 +77,124 @@ def index():
             list(request.form.keys()),
             list(request.files.keys()),
         )
-        # Parse all subtitle/task groups from the form with limits
+        # Build tasks either from JSON payload (preferred) or legacy dynamic form
         subtitle_tasks: List[Dict[str, Any]] = []
         form = request.form
+
+        payload_raw = form.get("payload_json")
+        used_payload = False
+        if payload_raw:
+            try:
+                data = json.loads(payload_raw)
+                sections = data.get("sections") or []
+                if not isinstance(sections, list):
+                    raise ValueError("sections must be a list")
+                if len(sections) > MAX_SECTIONS:
+                    raise ValueError(f"Too many sections (max {MAX_SECTIONS}).")
+
+                # Prepare a set of known icon names (best-effort)
+                icons: set[str] = set()
+                try:
+                    for ic in get_available_icons():
+                        name = None
+                        try:
+                            name = ic.get("name")  # type: ignore[attr-defined]
+                        except Exception:
+                            name = getattr(ic, "name", None)
+                        if name:
+                            icons.add(str(name))
+                except Exception:
+                    icons = set()
+
+                total_chars = 0
+                for s_idx, sec in enumerate(sections, start=1):
+                    if not isinstance(sec, dict):
+                        continue
+                    subtitle = (sec.get("subtitle") or "").strip()
+                    if subtitle:
+                        if len(subtitle) > MAX_SUBTITLE_LEN:
+                            raise ValueError(f"Subtitle in section {s_idx} is too long (max {MAX_SUBTITLE_LEN}).")
+                        if _has_control_chars(subtitle):
+                            raise ValueError("Subtitles cannot contain control characters.")
+                        total_chars += len(subtitle)
+
+                    tasks = list(sec.get("tasks") or [])
+                    if not isinstance(tasks, list):
+                        tasks = []
+                    if len(tasks) > MAX_TASKS_PER_SECTION:
+                        raise ValueError(f"Too many tasks in section {s_idx} (max {MAX_TASKS_PER_SECTION}).")
+
+                    # For each task, validate and optionally attach flair
+                    for t_idx, t in enumerate(tasks, start=1):
+                        if not isinstance(t, dict):
+                            continue
+                        text = (t.get("text") or "").strip()
+                        if not text:
+                            continue
+                        if len(text) > MAX_TASK_LEN:
+                            raise ValueError(f"Task {t_idx} in section {s_idx} is too long (max {MAX_TASK_LEN}).")
+                        if _has_control_chars(text):
+                            raise ValueError("Tasks cannot contain control characters.")
+                        total_chars += len(text)
+
+                        flair = None
+                        ftype = str(t.get("flair_type") or "none").strip().lower()
+                        fval = t.get("flair_value")
+
+                        if ftype == "icon":
+                            if fval:
+                                # Tolerate unknown icon name; do not hard fail
+                                flair = {"type": "icon", "value": fval}
+                        elif ftype == "qr":
+                            if fval:
+                                q = str(fval)
+                                if len(q) > MAX_QR_LEN:
+                                    raise ValueError(
+                                        f"QR data too long in section {s_idx} task {t_idx} (max {MAX_QR_LEN}).",
+                                    )
+                                if _has_control_chars(q):
+                                    raise ValueError("QR data cannot contain control characters.")
+                                flair = {"type": "qr", "value": q}
+                        elif ftype == "image":
+                            # Determine upload field from payload (flair_value) or fallback to DOM-aligned default
+                            file_key = str(fval) if (isinstance(fval, str) and fval) else f"flair_image_{s_idx}_{t_idx}"
+                            if file_key in request.files:
+                                file = request.files.get(file_key)
+                                if file and file.filename:
+                                    fname = secure_filename(file.filename)
+                                    if not is_supported_image(fname):
+                                        exts = ", ".join(IMAGE_EXTS)
+                                        raise ValueError(f"Unsupported image type. Use one of: {exts}")
+                                    # size check
+                                    try:
+                                        file.stream.seek(0, os.SEEK_END)
+                                        size = file.stream.tell()
+                                        file.stream.seek(0)
+                                    except Exception:
+                                        size = 0
+                                    if size and size > MAX_UPLOAD_SIZE:
+                                        raise ValueError("Image too large.")
+                                    ext = os.path.splitext(fname)[1].lower()
+                                    unique = uuid.uuid4().hex + ext
+                                    dest = os.path.join(MEDIA_PATH, unique)
+                                    file.save(dest)
+                                    flair = {"type": "image", "value": dest}
+
+                        subtitle_tasks.append({"subtitle": subtitle, "task": text, "flair": flair})
+
+                if total_chars > MAX_TOTAL_CHARS:
+                    raise ValueError(f"Input too large (max total characters {MAX_TOTAL_CHARS}).")
+
+                # If we reached here, the payload_json path succeeded; suppress legacy parsing
+                used_payload = True
+                # Ensure the legacy parser below sees an empty form
+                form = {}
+            except Exception as e:
+                current_app.logger.warning(
+                    "payload_json parse/validate failed: %s; falling back to legacy form parser",
+                    e,
+                )
+
         section = 1
 
         while True:

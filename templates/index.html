@@ -1,11 +1,17 @@
 {% extends "base.html" %} {% from "_components.html" import topbar, btn,
-flash_messages, card, flash %} {% block content %}
+flash_messages, card, flash %} {% block content %} {% from "_form_macros.html"
+import task_row, flair_row, icon_picker %}
 <div class="max-w-4xl mx-auto p-5">
     {% if prefill_template %}
     <script>
-      window.__PREFILL_TEMPLATE = {{ prefill_template|tojson|safe }};
+        window.__PREFILL_TEMPLATE = {{ prefill_template|tojson|safe }};
     </script>
     {% endif %}
+    <script>
+        window.__ICONS = [
+          {% for ic in icons %}{ name: "{{ ic.name }}", url: "{{ url_for('static', filename=ic.filename) }}" }{% if not loop.last %},{% endif %}{% endfor %}
+        ];
+    </script>
     <div class="flex items-center justify-between gap-2 my-4 flex-wrap">
         <div class="flex items-center gap-2 flex-wrap">
             {{ btn("🧾 Jobs", href="/jobs", variant="outline", size="sm") }} {{
@@ -61,9 +67,8 @@ flash_messages, card, flash %} {% block content %}
 
     <!-- Card container -->
     <div class="bg-white dark:bg-slate-800 p-7 rounded-md shadow">
-        {% if prefill_template %}
-        {{ flash('info', 'Loaded template: ' ~ (prefill_template.name or '')) }}
-        {% endif %}
+        {% if prefill_template %} {{ flash('info', 'Loaded template: ' ~
+        (prefill_template.name or '')) }} {% endif %}
         <h1
             class="text-center text-2xl font-bold text-slate-800 dark:text-slate-100 mb-6"
         >
@@ -97,118 +102,81 @@ flash_messages, card, flash %} {% block content %}
         <form method="POST" id="taskForm" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <div id="subtitleSections">
-                {% if prefill_template and prefill_template.sections %}
-                  {% for sec in prefill_template.sections %}
-                  {% set i = loop.index %}
-                  <div class="subtitle-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7" data-section="{{ i }}">
-                    <label for="subtitle_{{ i }}" class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Subtitle (e.g., Cleaning kitchen):</label>
-                    <input type="text" id="subtitle_{{ i }}" name="subtitle_{{ i }}" placeholder="Enter subtitle..." value="{{ sec.subtitle or '' }}" class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-2">
+                {% if prefill_template and prefill_template.sections %} {% for
+                sec in prefill_template.sections %} {% set i = loop.index %}
+                <div
+                    class="subtitle-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7"
+                    data-section="{{ i }}"
+                >
+                    <label
+                        for="subtitle_{{ i }}"
+                        class="block mb-2 font-semibold text-gray-600 dark:text-gray-200"
+                        >Subtitle (e.g., Cleaning kitchen):</label
+                    >
+                    <input
+                        type="text"
+                        id="subtitle_{{ i }}"
+                        name="subtitle_{{ i }}"
+                        placeholder="Enter subtitle..."
+                        value="{{ sec.subtitle or '' }}"
+                        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-2"
+                    />
                     <div class="taskContainer" id="taskContainer_{{ i }}">
-                      {% set tasks = sec.tasks or [] %}
-                      {% for t in tasks %}
-                      {% set j = loop.index %}
-                      <div class="task-input mb-4">
-                        <div class="flex items-center gap-2 mb-2">
-                          <label class="font-semibold text-gray-600 dark:text-gray-200">Task {{ j }}:</label>
-                          <button type="button" class="remove-task inline-flex items-center justify-center w-8 h-8 rounded-md bg-red-600 text-white hover:bg-red-700 flex-shrink-0 text-sm" onclick="removeTask(this)">✕</button>
-                        </div>
-                        <input type="text" name="task_{{ i }}_{{ j }}" placeholder="Enter task {{ j }}..." value="{{ t.text or '' }}" class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-3">
-                      </div>
-                      <div class="flair-row mb-4" data-for="{{ i }}_{{ j }}">
-                        <label class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Flair:</label>
-                        <div class="flex items-center gap-2 mb-3">
-                          {% set ftype = (t.flair_type or 'none')|lower %}
-                          {% set fval = t.flair_value %}
-                          <select name="flair_type_{{ i }}_{{ j }}" onchange="onFlairTypeChange(this)" class="p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600">
-                            <option value="none" {% if ftype=='none' %}selected{% endif %}>None</option>
-                            <option value="icon" {% if ftype=='icon' %}selected{% endif %}>Icon</option>
-                            <option value="image" {% if ftype=='image' %}selected{% endif %}>Image</option>
-                            <option value="qr" {% if ftype=='qr' %}selected{% endif %}>QR</option>
-                          </select>
-                          <input type="file" name="flair_image_{{ i }}_{{ j }}" class="flair-image {% if ftype!='image' %}hidden{% endif %}" accept="image/*">
-                          <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
-                          <input type="text" name="flair_qr_{{ i }}_{{ j }}" class="flair-qr {% if ftype!='qr' %}hidden{% endif %} p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data" value="{% if ftype=='qr' and fval %}{{ fval }}{% endif %}">
-                        </div>
-                        <div class="flair-icon-picker {% if ftype!='icon' %}hidden{% endif %}">
-                          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 mt-2 p-3 sm:p-2 bg-gray-50 dark:bg-slate-700 rounded-lg border max-h-64 overflow-y-auto">
-                            {% for ic in icons %}
-                            <label class="flex flex-col items-center gap-1.5 sm:gap-1 p-2 sm:p-1.5 cursor-pointer hover:bg-white dark:hover:bg-slate-600 rounded-md transition-all duration-200 min-h-[5.5rem] sm:min-h-[4.5rem] border-2 border-transparent has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30 has-[:checked]:shadow-md hover:shadow-sm">
-                              <input type="radio" name="flair_icon_{{ i }}_{{ j }}" value="{{ ic.name }}" {% if ftype=='icon' and fval and ic.name == fval %}checked{% endif %} class="peer sr-only">
-                              <div class="w-10 h-10 sm:w-8 sm:h-8 lg:w-9 lg:h-9 flex items-center justify-center bg-white rounded-md shadow-sm border border-gray-200 dark:border-slate-600 peer-checked:border-blue-500 peer-checked:shadow-md">
-                                <img src="{{ url_for('static', filename=ic.filename) }}" alt="{{ ic.name }}" class="w-8 h-8 sm:w-6 sm:h-6 lg:w-7 lg:h-7 object-contain" onerror="this.style.display='none'">
-                              </div>
-                              <span class="text-xs font-medium text-center leading-tight text-gray-700 dark:text-gray-300 peer-checked:text-blue-600 dark:peer-checked:text-blue-400 capitalize">{{ ic.name.replace('_', ' ') }}</span>
-                            </label>
-                            {% endfor %}
-                          </div>
-                        </div>
-                        <input type="file" name="flair_image_{{ i }}_{{ j }}" class="flair-image {% if ftype!='image' %}hidden{% endif %}" accept="image/*">
-                        <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
-                        <input type="text" name="flair_qr_{{ i }}_{{ j }}" class="flair-qr {% if ftype!='qr' %}hidden{% endif %} p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data" value="{% if ftype=='qr' and fval %}{{ fval }}{% endif %}">
-                      </div>
-                      {% endfor %}
+                        {% for t in (sec.tasks or []) %} {% set j = loop.index
+                        %} {{ task_row(i, j, icons, text=t.text or '',
+                        flair_type=(t.flair_type or 'none'),
+                        flair_value=t.flair_value) }} {% endfor %}
                     </div>
-                    <button type="button" class="add-task-btn w-full py-2.5 rounded-md bg-green-600 text-white hover:bg-green-700" onclick="addTask(this)">➕ Add Task</button>
-                  </div>
-                  {% endfor %}
-                {% else %}
-                  <!-- Section 1 (default empty) -->
-                  <div class="subtitle-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7" data-section="1">
-                    <label for="subtitle_1" class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Subtitle (e.g., Cleaning kitchen):</label>
-                    <input type="text" id="subtitle_1" name="subtitle_1" placeholder="Enter subtitle..." class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-2">
+                    <button
+                        type="button"
+                        class="add-task-btn w-full py-2.5 rounded-md bg-green-600 text-white hover:bg-green-700"
+                    >
+                        ➕ Add Task
+                    </button>
+                </div>
+                {% endfor %} {% else %}
+                <div
+                    class="subtitle-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7"
+                    data-section="1"
+                >
+                    <label
+                        for="subtitle_1"
+                        class="block mb-2 font-semibold text-gray-600 dark:text-gray-200"
+                        >Subtitle (e.g., Cleaning kitchen):</label
+                    >
+                    <input
+                        type="text"
+                        id="subtitle_1"
+                        name="subtitle_1"
+                        placeholder="Enter subtitle..."
+                        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-2"
+                    />
                     <div class="taskContainer" id="taskContainer_1">
-                      <div class="task-input mb-4">
-                        <div class="flex items-center gap-2 mb-2">
-                          <label class="font-semibold text-gray-600 dark:text-gray-200">Task 1:</label>
-                          <button type="button" class="remove-task inline-flex items-center justify-center w-8 h-8 rounded-md bg-red-600 text-white hover:bg-red-700 flex-shrink-0 text-sm hidden" onclick="removeTask(this)">✕</button>
-                        </div>
-                        <input type="text" name="task_1_1" placeholder="Enter task 1..." required class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-3">
-                      </div>
-                      <div class="flair-row mb-4" data-for="1_1">
-                        <label class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Flair:</label>
-                        <div class="flex items-center gap-2 mb-3">
-                          <select name="flair_type_1_1" onchange="onFlairTypeChange(this)" class="p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600">
-                            <option value="none" selected>None</option>
-                            <option value="icon">Icon</option>
-                            <option value="image">Image</option>
-                            <option value="qr">QR</option>
-                          </select>
-                          <input type="file" name="flair_image_1_1" class="flair-image hidden" accept="image/*">
-                          <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
-                          <input type="text" name="flair_qr_1_1" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
-                        </div>
-                        <div class="flair-icon-picker hidden">
-                          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 mt-2 p-3 sm:p-2 bg-gray-50 dark:bg-slate-700 rounded-lg border max-h-64 overflow-y-auto">
-                            {% for ic in icons %}
-                            <label class="flex flex-col items-center gap-1.5 sm:gap-1 p-2 sm:p-1.5 cursor-pointer hover:bg-white dark:hover:bg-slate-600 rounded-md transition-all duration-200 min-h-[5.5rem] sm:min-h-[4.5rem] border-2 border-transparent has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30 has-[:checked]:shadow-md hover:shadow-sm">
-                              <input type="radio" name="flair_icon_1_1" value="{{ ic.name }}" class="peer sr-only">
-                              <div class="w-10 h-10 sm:w-8 sm:h-8 lg:w-9 lg:h-9 flex items-center justify-center bg-white rounded-md shadow-sm border border-gray-200 dark:border-slate-600 peer-checked:border-blue-500 peer-checked:shadow-md">
-                                <img src="{{ url_for('static', filename=ic.filename) }}" alt="{{ ic.name }}" class="w-8 h-8 sm:w-6 sm:h-6 lg:w-7 lg:h-7 object-contain" onerror="this.style.display='none'">
-                              </div>
-                              <span class="text-xs font-medium text-center leading-tight text-gray-700 dark:text-gray-300 peer-checked:text-blue-600 dark:peer-checked:text-blue-400 capitalize">{{ ic.name.replace('_', ' ') }}</span>
-                            </label>
-                            {% endfor %}
-                          </div>
-                        </div>
-                        <input type="file" name="flair_image_1_1" class="flair-image hidden" accept="image/*">
-                        <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
-                        <input type="text" name="flair_qr_1_1" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
-                      </div>
+                        {{ task_row(1, 1, icons) }}
                     </div>
-                    <button type="button" class="add-task-btn w-full py-2.5 rounded-md bg-green-600 text-white hover:bg-green-700" onclick="addTask(this)">➕ Add Task</button>
-                  </div>
+                    <button
+                        type="button"
+                        class="add-task-btn w-full py-2.5 rounded-md bg-green-600 text-white hover:bg-green-700"
+                    >
+                        ➕ Add Task
+                    </button>
+                </div>
                 {% endif %}
             </div>
             <button
                 type="button"
                 class="w-full py-2.5 rounded-md bg-brand text-white hover:bg-brand-dark mb-7"
-                onclick="addSubtitleSection()"
+                onclick="TaskPrinter.addSubtitleSection()"
             >
                 ➕ Add Subtitle Section
             </button>
             <!-- Print Options: Tear-off delay -->
             <div class="mb-4">
-                <label for="tear_delay_seconds" class="block mb-1 font-semibold text-gray-600 dark:text-gray-200">Tear-off delay (seconds)</label>
+                <label
+                    for="tear_delay_seconds"
+                    class="block mb-1 font-semibold text-gray-600 dark:text-gray-200"
+                    >Tear-off delay (seconds)</label
+                >
                 <input
                     type="number"
                     id="tear_delay_seconds"
@@ -220,7 +188,9 @@ flash_messages, card, flash %} {% block content %}
                     value="{% if default_tear_delay and default_tear_delay > 0 %}{{ (default_tear_delay|int) if default_tear_delay == (default_tear_delay|int) else default_tear_delay }}{% endif %}"
                     class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
                 />
-                <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">Wait this many seconds between tasks and do not cut.</p>
+                <p class="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    Wait this many seconds between tasks and do not cut.
+                </p>
             </div>
             <button
                 type="submit"
@@ -232,490 +202,4 @@ flash_messages, card, flash %} {% block content %}
     </div>
 </div>
 
-<script>
-    // Initialize dark mode toggle button text
-    (function() {
-      const btn = document.getElementById('darkModeBtn');
-      if (!btn) return;
-      const dark = document.documentElement.classList.contains('dark');
-      btn.textContent = dark ? '☀️ Light Mode' : '🌙 Dark Mode';
-    })();
-
-    // Utility helpers to show/hide (Tailwind's 'hidden')
-    function show(el) { if (el) el.classList.remove('hidden'); }
-    function hide(el) { if (el) el.classList.add('hidden'); }
-
-    // Initialize counters based on server-rendered content (fallback values if none)
-    var sectionCount = {% if prefill_template and prefill_template.sections %}{{ prefill_template.sections|length }}{% else %}1{% endif %};
-    var taskCounts = { 
-      {% if prefill_template and prefill_template.sections %}
-        {% for sec in prefill_template.sections %}
-          {{ loop.index }}: {{ (sec.tasks or [])|length }}{% if not loop.last %},{% endif %}
-        {% endfor %}
-      {% else %}
-        1: 1
-      {% endif %}
-    };
-
-    function addSubtitleSection() {
-      sectionCount++;
-      taskCounts[sectionCount] = 1;
-      const subtitleSections = document.getElementById('subtitleSections');
-      const sectionDiv = document.createElement('div');
-      sectionDiv.className = 'subtitle-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7';
-      sectionDiv.setAttribute('data-section', sectionCount);
-      sectionDiv.innerHTML = `
-        <label for="subtitle_${sectionCount}" class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Subtitle (e.g., Cleaning kitchen):</label>
-        <input type="text" id="subtitle_${sectionCount}" name="subtitle_${sectionCount}" placeholder="Enter subtitle..." class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-2">
-        <div class="taskContainer" id="taskContainer_${sectionCount}">
-          <div class="task-input mb-4">
-            <div class="flex items-center gap-2 mb-2">
-              <label class="font-semibold text-gray-600 dark:text-gray-200">Task 1:</label>
-              <button type="button" class="remove-task inline-flex items-center justify-center w-8 h-8 rounded-md bg-red-600 text-white hover:bg-red-700 flex-shrink-0 text-sm hidden" onclick="removeTask(this)">✕</button>
-            </div>
-            <input type="text" name="task_${sectionCount}_1" placeholder="Enter task 1..." required class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-3">
-          </div>
-          <div class="flair-row mb-4" data-for="${sectionCount}_1">
-            <label class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Flair:</label>
-            <div class="flex items-center gap-2 mb-3">
-              <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)" class="p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600">
-                <option value="none" selected>None</option>
-                <option value="icon">Icon</option>
-                <option value="image">Image</option>
-                <option value="qr">QR</option>
-              </select>
-              <input type="file" name="flair_image_${sectionCount}_1" class="flair-image hidden" accept="image/*">
-              <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
-              <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
-            </div>
-            <div class="flair-icon-picker hidden"><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 mt-2 p-3 sm:p-2 bg-gray-50 dark:bg-slate-700 rounded-lg border max-h-64 overflow-y-auto">${buildIconPickerHtml(sectionCount, 1)}</div></div>
-          </div>
-        </div>
-        <button type="button" class="add-task-btn w-full py-2.5 rounded-md bg-green-600 text-white hover:bg-green-700">➕ Add Task</button>
-      `;
-      subtitleSections.appendChild(sectionDiv);
-      const newTaskContainer = sectionDiv.querySelector('.taskContainer');
-      updateRemoveButtons(newTaskContainer);
-      // Wire newly added add-task button
-      const addBtn = sectionDiv.querySelector('.add-task-btn');
-      if (addBtn) addBtn.addEventListener('click', function(){ addTask(addBtn); });
-    }
-
-    function addTask(btn) {
-      const sectionDiv = btn.closest('.subtitle-section');
-      const sectionId = sectionDiv.getAttribute('data-section');
-      taskCounts[sectionId] = (taskCounts[sectionId] || 1) + 1;
-      const taskContainer = sectionDiv.querySelector('.taskContainer');
-      const taskNumber = taskCounts[sectionId];
-
-      const newTaskDiv = document.createElement('div');
-      newTaskDiv.className = 'task-input mb-4';
-      newTaskDiv.innerHTML = `
-        <div class="flex items-center gap-2 mb-2">
-          <label class="font-semibold text-gray-600 dark:text-gray-200">Task ${taskNumber}:</label>
-          <button type="button" class="remove-task inline-flex items-center justify-center w-8 h-8 rounded-md bg-red-600 text-white hover:bg-red-700 flex-shrink-0 text-sm" onclick="removeTask(this)">✕</button>
-        </div>
-        <input type="text" name="task_${sectionId}_${taskNumber}" placeholder="Enter task ${taskNumber}..." class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-3">
-      `;
-      taskContainer.appendChild(newTaskDiv);
-
-      const flairDiv = document.createElement('div');
-      flairDiv.className = 'flair-row mb-4';
-      flairDiv.setAttribute('data-for', `${sectionId}_${taskNumber}`);
-      flairDiv.innerHTML = `
-        <label class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Flair:</label>
-        <div class="flex items-center gap-2 mb-3">
-          <select name="flair_type_${sectionId}_${taskNumber}" onchange="onFlairTypeChange(this)" class="p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600">
-            <option value="none" selected>None</option>
-            <option value="icon">Icon</option>
-            <option value="image">Image</option>
-            <option value="qr">QR</option>
-          </select>
-          <input type="file" name="flair_image_${sectionId}_${taskNumber}" class="flair-image hidden" accept="image/*">
-          <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
-          <input type="text" name="flair_qr_${sectionId}_${taskNumber}" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
-        </div>
-        <div class="flair-icon-picker hidden"><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 mt-2 p-3 sm:p-2 bg-gray-50 dark:bg-slate-700 rounded-lg border max-h-64 overflow-y-auto">${buildIconPickerHtml(sectionId, taskNumber)}</div></div>
-      `;
-      taskContainer.appendChild(flairDiv);
-
-      updateRemoveButtons(taskContainer);
-    }
-
-    function removeTask(btn) {
-      const taskDiv = btn.closest('.task-input');
-      const taskContainer = taskDiv.parentElement;
-      const sectionDiv = taskContainer.closest('.subtitle-section');
-      
-      // Find the corresponding flair row and remove it too
-      const taskIndex = Array.from(taskContainer.querySelectorAll('.task-input')).indexOf(taskDiv);
-      const flairRows = taskContainer.querySelectorAll('.flair-row');
-      if (flairRows[taskIndex]) {
-        flairRows[taskIndex].remove();
-      }
-      
-      taskDiv.remove();
-
-      // If no tasks remain, remove entire subtitle section
-      const taskInputs = taskContainer.querySelectorAll('.task-input');
-      if (taskInputs.length === 0) {
-        const subtitleSections = document.getElementById('subtitleSections');
-        subtitleSections.removeChild(sectionDiv);
-        if (subtitleSections.children.length === 0) {
-          // Create a fresh empty section
-          sectionCount++;
-          taskCounts[sectionCount] = 1;
-          const newSection = document.createElement('div');
-          newSection.className = 'subtitle-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7';
-          newSection.setAttribute('data-section', sectionCount);
-          const pickerInit = buildIconPickerHtml(sectionCount, 1);
-          newSection.innerHTML = `
-            <label for="subtitle_${sectionCount}" class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Subtitle (e.g., Cleaning kitchen):</label>
-            <input type="text" id="subtitle_${sectionCount}" name="subtitle_${sectionCount}" placeholder="Enter subtitle..." class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-2">
-            <div class="taskContainer" id="taskContainer_${sectionCount}">
-              <div class="task-input mb-4">
-                <div class="flex items-center gap-2 mb-2">
-                  <label class="font-semibold text-gray-600 dark:text-gray-200">Task 1:</label>
-                  <button type="button" class="remove-task inline-flex items-center justify-center w-8 h-8 rounded-md bg-red-600 text-white hover:bg-red-700 flex-shrink-0 text-sm hidden" onclick="removeTask(this)">✕</button>
-                </div>
-                <input type="text" name="task_${sectionCount}_1" placeholder="Enter task 1..." required class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-3">
-              </div>
-              <div class="flair-row mb-4" data-for="${sectionCount}_1">
-                <label class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Flair:</label>
-                <div class="flex items-center gap-2 mb-3">
-                  <input type="file" name="flair_image_${sectionCount}_1" class="flair-image hidden" accept="image/*">
-                  <img class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded" alt="preview">
-                  <input type="text" name="flair_qr_${sectionCount}_1" class="flair-qr hidden p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600" placeholder="QR data">
-                </div>
-                <select name="flair_type_${sectionCount}_1" onchange="onFlairTypeChange(this)" class="p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600">
-                  <option value="none" selected>None</option>
-                  <option value="icon">Icon</option>
-                  <option value="image">Image</option>
-                  <option value="qr">QR</option>
-                </select>
-                <div class="flair-icon-picker hidden"><div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 mt-2 p-3 sm:p-2 bg-gray-50 dark:bg-slate-700 rounded-lg border max-h-64 overflow-y-auto">${pickerInit}</div></div>
-              </div>
-            </div>
-            <button type="button" class="add-task-btn w-full py-2.5 rounded-md bg-green-600 text-white hover:bg-green-700">➕ Add Task</button>
-          `;
-          subtitleSections.appendChild(newSection);
-          const addBtn = newSection.querySelector('.add-task-btn');
-          if (addBtn) addBtn.addEventListener('click', function(){ addTask(addBtn); });
-        }
-        return;
-      }
-
-      // Renumber tasks and update flair keys
-      const sectionId = sectionDiv.getAttribute('data-section');
-      const inputs = taskContainer.querySelectorAll('.task-input');
-      inputs.forEach((row, index) => {
-        const label = row.querySelector('label');
-        const textInput = row.querySelector('input[name^="task_"]');
-        const taskNumber = index + 1;
-        label.textContent = `Task ${taskNumber}:`;
-        textInput.name = textInput.name.replace(/^(.*_)(\d+)$/, `$1${taskNumber}`);
-        textInput.placeholder = `Enter task ${taskNumber}...`;
-      });
-      const allFlairs = taskContainer.querySelectorAll('.flair-row');
-      allFlairs.forEach((fr, idx) => {
-        const newNum = idx + 1;
-        fr.setAttribute('data-for', `${sectionId}_${newNum}`);
-        fr.querySelectorAll('select, input').forEach(el => {
-          if (el.name) el.name = el.name.replace(/^(flair_(?:type|icon|qr|image)_\d+_)(\d+)$/, `$1${newNum}`);
-        });
-        // Reset flair picker state to ensure it's properly hidden
-        const flairSelect = fr.querySelector('select[name^="flair_type_"]');
-        if (flairSelect && flairSelect.value === 'none') {
-          onFlairTypeChange(flairSelect);
-        }
-      });
-
-      updateRemoveButtons(taskContainer);
-    }
-
-    function onFlairTypeChange(sel) {
-      const row = sel.closest('.flair-row');
-      const iconPicker = row.querySelector('.flair-icon-picker');
-      const qrInput = row.querySelector('.flair-qr');
-      const imgInput = row.querySelector('.flair-image');
-      const preview = row.querySelector('.flair-preview');
-
-      if (sel.value === 'icon') {
-        show(iconPicker); hide(qrInput); hide(imgInput); if (preview) { hide(preview); preview.src = ''; }
-      } else if (sel.value === 'image') {
-        hide(iconPicker); hide(qrInput); show(imgInput);
-      } else if (sel.value === 'qr') {
-        hide(iconPicker); show(qrInput); hide(imgInput); if (preview) { hide(preview); preview.src = ''; }
-      } else {
-        hide(iconPicker); hide(qrInput); hide(imgInput); if (preview) { hide(preview); preview.src = ''; }
-      }
-    }
-
-    function updateRemoveButtons(taskContainer) {
-      const taskInputs = taskContainer.querySelectorAll('.task-input');
-      const subtitleSections = document.getElementById('subtitleSections');
-      const isOnlySection = subtitleSections.children.length === 1;
-      taskInputs.forEach((input) => {
-        const removeBtn = input.querySelector('.remove-task');
-        if (removeBtn) {
-          if (taskInputs.length === 1 && isOnlySection) {
-            hide(removeBtn);
-          } else {
-            show(removeBtn);
-          }
-        }
-      });
-    }
-
-    // Preview uploaded image for flair
-    document.addEventListener('change', function(e){
-      if (e.target && e.target.classList.contains('flair-image')) {
-        const input = e.target;
-        const row = input.closest('.flair-row');
-        const preview = row ? row.querySelector('.flair-preview') : null;
-        if (input.files && input.files[0] && preview) {
-          const reader = new FileReader();
-          reader.onload = function(ev){
-            preview.src = ev.target.result;
-            show(preview);
-          };
-          reader.readAsDataURL(input.files[0]);
-        } else if (preview) {
-          preview.src = '';
-          hide(preview);
-        }
-      }
-    });
-
-    // Optional job status polling
-    (function() {
-      const container = document.getElementById('jobStatus');
-      if (!container) return;
-      const jobId = container.getAttribute('data-job-id');
-      const text = document.getElementById('jobStatusText');
-      const dismiss = document.getElementById('jobDismissBtn');
-      let timer = null;
-      function update() {
-        fetch(`/jobs/${jobId}`).then(r => {
-          if (!r.ok) { throw new Error('not found'); }
-          return r.json();
-        }).then(j => {
-          text.textContent = `— ${j.status}`;
-          if (j.status === 'success' || j.status === 'error') {
-            clearInterval(timer);
-            setTimeout(() => { container.style.display = 'none'; }, 4000);
-          }
-        }).catch(() => {
-          text.textContent = '— unavailable';
-          clearInterval(timer);
-          setTimeout(() => { container.style.display = 'none'; }, 4000);
-        });
-      }
-      timer = setInterval(update, 2000);
-      update();
-      dismiss.addEventListener('click', () => { if (timer) clearInterval(timer); container.style.display='none'; });
-    })();
-
-    // CSRF helpers (cookie -> header)
-    function getCookie(name) {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) {
-        return decodeURIComponent(parts.pop().split(';').shift());
-      }
-      return '';
-    }
-    function csrfHeader(headers = {}) {
-      const token = getCookie('csrf_token');
-      if (token) headers['X-CSRFToken'] = token;
-      return headers;
-    }
-
-    // Collect current form into sections/tasks structure
-    function collectFormSections() {
-      const sections = [];
-      const container = document.getElementById('subtitleSections');
-      const sectionDivs = container.querySelectorAll('.subtitle-section');
-      sectionDivs.forEach(sec => {
-        const sid = sec.getAttribute('data-section');
-        const subtitleInput = sec.querySelector(`#subtitle_${sid}`);
-        const subtitle = (subtitleInput && subtitleInput.value || '').trim();
-        const tasks = [];
-        const taskContainer = sec.querySelector('.taskContainer');
-        const taskRows = taskContainer.querySelectorAll('.task-input');
-        taskRows.forEach((row, idx) => {
-          const tnum = idx + 1;
-          const input = row.querySelector(`input[name="task_${sid}_${tnum}"]`);
-          const text = (input && input.value || '').trim();
-          if (!text) return;
-          const flairRow = taskContainer.querySelector(`.flair-row[data-for="${sid}_${tnum}"]`);
-          let flair_type = 'none';
-          let flair_value = null;
-          if (flairRow) {
-            const sel = flairRow.querySelector(`select[name="flair_type_${sid}_${tnum}"]`);
-            if (sel) flair_type = sel.value || 'none';
-            if (flair_type === 'icon') {
-              const checked = flairRow.querySelector(`input[name="flair_icon_${sid}_${tnum}"]:checked`);
-              flair_value = checked ? checked.value : null;
-              if (!flair_value) flair_type = 'none';
-            } else if (flair_type === 'qr') {
-              const qr = flairRow.querySelector(`input[name="flair_qr_${sid}_${tnum}"]`);
-              flair_value = qr ? (qr.value || '').trim() : null;
-              if (!flair_value) flair_type = 'none';
-            } else if (flair_type === 'image') {
-              // Cannot serialize file inputs in JSON; skip image flair when saving as template via JSON.
-              flair_type = 'none';
-              flair_value = null;
-            }
-          }
-          tasks.push({ text, flair_type, flair_value });
-        });
-        if (subtitle || tasks.length) {
-          sections.push({ subtitle, tasks });
-        }
-      });
-      return sections;
-    }
-
-    async function saveCurrentAsTemplate() {
-      const name = (prompt('Save as Template — name:', '') || '').trim();
-      if (!name) return;
-      const notes = (prompt('Optional notes:', '') || '').trim();
-      const sections = collectFormSections();
-      if (!sections.length) {
-        alert('No tasks to save.');
-        return;
-      }
-      try {
-        const res = await fetch('/templates', {
-          method: 'POST',
-          headers: csrfHeader({
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }),
-          body: JSON.stringify({ name, notes, sections })
-        });
-        if (!res.ok) {
-          const err = await (async () => { try { return await res.json(); } catch { return {}; } })();
-          alert('Save failed: ' + (err.error || res.statusText));
-          return;
-        }
-        // Go to Templates page after save
-        location.href = '/templates';
-      } catch (e) {
-        alert('Save failed: ' + e);
-      }
-    }
-
-    // Build the form from a saved template (set by /templates Load action)
-    (function() {
-      // 1) Server-provided object (/?prefill=<id> path)
-      try {
-        if (typeof window.__PREFILL_TEMPLATE !== 'undefined' && window.__PREFILL_TEMPLATE) {
-          prefillFromTemplateData(window.__PREFILL_TEMPLATE);
-          window.__PREFILL_TEMPLATE = null;
-          return;
-        }
-      } catch (e) { /* ignore */ }
-
-      // 2) LocalStorage path
-      try {
-        var raw = localStorage.getItem('taskprinter:prefill_template');
-        if (raw) {
-          localStorage.removeItem('taskprinter:prefill_template');
-          var data = JSON.parse(raw);
-          prefillFromTemplateData(data);
-          return;
-        }
-      } catch (e) { /* ignore */ }
-
-      // 3) Client fetch based on URL param (?prefill=<id>) as last resort
-      try {
-        var m = (location.search || '').match(/[?&]prefill=(\d+)/);
-        if (m) {
-          var pid = m[1];
-          fetch('/templates/' + pid, { headers: { 'Accept': 'application/json' } })
-            .then(function(res){
-              if (!res.ok) return null; return res.json();
-            })
-            .then(function(data){ if (data) prefillFromTemplateData(data); })
-            .catch(function(){ /* ignore */ });
-        }
-      } catch (e) { /* ignore */ }
-    })();
-
-    function prefillFromTemplateData(tpl) {
-      const container = document.getElementById('subtitleSections');
-      if (!container) return;
-      // Reset sections
-      container.innerHTML = '';
-      sectionCount = 0;
-      taskCounts = {};
-      const sections = Array.isArray(tpl.sections) ? tpl.sections : [];
-      sections.forEach((sec) => {
-        addSubtitleSection();
-        const sectionDiv = container.lastElementChild;
-        if (!sectionDiv) return;
-        const sid = sectionDiv.getAttribute('data-section');
-        const subInput = sectionDiv.querySelector(`#subtitle_${sid}`);
-        if (subInput) subInput.value = sec.subtitle || '';
-        const tasks = Array.isArray(sec.tasks) ? sec.tasks : [];
-        if (tasks.length === 0) {
-          return; // leave default empty
-        }
-        // First task
-        const firstTaskInput = sectionDiv.querySelector(`input[name="task_${sid}_1"]`);
-        if (firstTaskInput) firstTaskInput.value = tasks[0].text || '';
-        setFlairForTask(sectionDiv, sid, 1, tasks[0]);
-        // Additional tasks
-        for (let i = 1; i < tasks.length; i++) {
-          const addBtn = sectionDiv.querySelector('.add-task-btn');
-          if (addBtn) addTask(addBtn);
-          const tnum = i + 1;
-          const taskInput = sectionDiv.querySelector(`input[name="task_${sid}_${tnum}"]`);
-          if (taskInput) taskInput.value = tasks[i].text || '';
-          setFlairForTask(sectionDiv, sid, tnum, tasks[i]);
-        }
-        const taskContainer = sectionDiv.querySelector('.taskContainer');
-        if (taskContainer) updateRemoveButtons(taskContainer);
-      });
-
-      function setFlairForTask(sectionDiv, sid, tnum, t) {
-        const rowSel = sectionDiv.querySelector(`select[name="flair_type_${sid}_${tnum}"]`);
-        if (!rowSel) return;
-        const ftype = (t && t.flair_type) ? String(t.flair_type) : 'none';
-        const fval = t ? t.flair_value : null;
-        rowSel.value = ftype;
-        onFlairTypeChange(rowSel);
-        if (ftype === 'icon' && fval != null) {
-          // Avoid CSS.escape to support older browsers: loop radios and match by value
-          const radios = sectionDiv.querySelectorAll(`input[name="flair_icon_${sid}_${tnum}"]`);
-          for (let i = 0; i < radios.length; i++) {
-            if (String(radios[i].value) === String(fval)) { radios[i].checked = true; break; }
-          }
-        } else if (ftype === 'qr' && fval != null) {
-          const qr = sectionDiv.querySelector(`input[name="flair_qr_${sid}_${tnum}"]`);
-          if (qr) qr.value = String(fval);
-        }
-        // images cannot be prefilled due to browser file input restrictions
-      }
-    }
-
-    // Build icon picker HTML for dynamic rows
-    const ICONS = [
-      {% for ic in icons %}{ name: "{{ ic.name }}", url: "{{ url_for('static', filename=ic.filename) }}" }{% if not loop.last %},{% endif %}{% endfor %}
-    ];
-    function buildIconPickerHtml(sectionId, taskNumber) {
-      if (!ICONS || ICONS.length === 0) return '<em class="text-slate-500">No icons available</em>';
-      return ICONS.map(ic => `
-        <label class="flex flex-col items-center gap-1.5 sm:gap-1 p-2 sm:p-1.5 cursor-pointer hover:bg-white dark:hover:bg-slate-600 rounded-md transition-all duration-200 min-h-[5.5rem] sm:min-h-[4.5rem] border-2 border-transparent has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30 has-[:checked]:shadow-md hover:shadow-sm">
-          <input type="radio" name="flair_icon_${sectionId}_${taskNumber}" value="${ic.name}" class="peer sr-only">
-          <div class="w-10 h-10 sm:w-8 sm:h-8 lg:w-9 lg:h-9 flex items-center justify-center bg-white rounded-md shadow-sm border border-gray-200 dark:border-slate-600 peer-checked:border-blue-500 peer-checked:shadow-md">
-            <img src="${ic.url}" alt="${ic.name}" class="w-8 h-8 sm:w-6 sm:h-6 lg:w-7 lg:h-7 object-contain" onerror="this.style.display='none'">
-          </div>
-          <span class="text-xs font-medium text-center leading-tight text-gray-700 dark:text-gray-300 peer-checked:text-blue-600 dark:peer-checked:text-blue-400 capitalize">${ic.name.replace(/_/g, ' ')}</span>
-        </label>
-      `).join('');
-    }
-</script>
 {% endblock %}

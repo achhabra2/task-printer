@@ -2,6 +2,8 @@
 
 A simple, user-friendly Flask web app for Raspberry Pi that lets you enter tasks via a web interface and prints each task on a USB, network, or serial-connected receipt printer (e.g., Epson TM-T20III). Designed for easy setup and use by anyone.
 
+Recent frontend refactor: the dynamic form UI is now driven by small Jinja form macros and a single static JS module. Form submissions include a compact JSON payload (plus multipart files) to make the backend simpler and more reliable.
+
 **Inspired by and functionally based on [Laurie Hérault's article: "A receipt printer cured my procrastination"](https://www.laurieherault.com/articles/a-thermal-receipt-printer-cured-my-procrastination). Their code was not public, so this open-source version was created for the community.**
 
 ## Features
@@ -9,7 +11,11 @@ A simple, user-friendly Flask web app for Raspberry Pi that lets you enter tasks
 - Each task prints as a separate receipt with clear formatting
 - Supports USB, network, and serial receipt printers (via python-escpos)
 - Dynamic task and subtitle sections
- - Per‑print tear‑off mode (optional delay between tasks, no cut)
+  - Per‑print tear‑off mode (optional delay between tasks, no cut)
+- Frontend powered by:
+  - Jinja form macros for reusable UI (icon picker, flair row, task row)
+  - A single static module `static/js/app.js` for add/remove rows, flair toggles, job polling, image preview, save-as-template, and prefill
+  - Cleaner form submission: a hidden `payload_json` field carries sections/tasks as JSON; image files stay in the multipart body and are referenced by field name
 - Dark mode and responsive design
 - Easy first-run setup and reconfiguration via web UI
 - Systemd service for auto-start on boot
@@ -112,18 +118,29 @@ GPL License. See [LICENSE](LICENSE) for details.
 ## Project Structure
 
 ```
-taskprinter/
-├── app.py              # Main Flask application
-├── templates/          # HTML templates
-│   └── index.html     # Web interface
-├── docs/               # Project documentation
-│   ├── IMPLEMENTED.md  # Implemented changes and usage
-│   └── IMPROVEMENTS.md # Proposed improvements / roadmap
-│   └── DEPLOYMENT.md   # Systemd, uv/venv, Docker
-│   └── PERSISTENCE.md  # Phase 3: SQLite templates design
-├── Dockerfile          # Container build (optional)
-├── README.md          # This file
-└── printout_*.txt     # Generated task files
+task-printer/
+├── app.py                      # Main runner that imports create_app()
+├── task_printer/               # Application package
+│   ├── __init__.py             # App factory (create_app)
+│   ├── core/                   # Core helpers (config, assets, logging, db)
+│   ├── printing/               # Rendering + background worker
+│   └── web/                    # Blueprints (routes, setup, jobs, templates)
+├── templates/                  # Jinja templates (repo root for easy edits)
+│   ├── _components.html        # UI macros (buttons, cards, flashes, etc.)
+│   ├── _form_macros.html       # Form macros (icon picker, flair row, task row)
+│   ├── base.html               # Base layout (loads Tailwind + static/js/app.js)
+│   └── index.html              # Main UI (uses form macros)
+├── static/
+│   ├── styles/app.css          # Minimal styling and tokens
+│   ├── js/app.js               # Frontend module (add/remove rows, prefill, JSON payload)
+│   └── icons/*.png             # Built-in flair icons
+├── docs/
+│   ├── IMPLEMENTED.md          # Implemented changes and usage
+│   ├── IMPROVEMENTS.md         # Proposed improvements / roadmap
+│   ├── DEPLOYMENT.md           # Systemd, uv/venv, Docker
+│   └── PERSISTENCE.md          # Phase 3: SQLite templates design
+├── README.md                   # This file
+└── requirements.txt            # Python dependencies
 ```
 
 ## Stopping the Application
@@ -133,9 +150,16 @@ Press `Ctrl+C` in the terminal where the application is running.
 ## Configuration
 
 - Global default tear‑off delay: set `default_tear_delay_seconds` in `config.json` (0–60). When set, template prints use this value by default and the Index page preloads it into the tear‑off input. Users can override it per print.
+- Frontend JSON payload:
+  - On submit, the index form adds a hidden input `payload_json` containing `{ sections: [...] }`, where each section has `subtitle` and an array of `tasks`.
+  - Each task may include flair: `{ flair_type: "none" | "icon" | "image" | "qr", flair_value: string | null }`.
+  - For image flair, `flair_value` is the file input field name (e.g., `flair_image_2_3`); the actual file is sent in the multipart form under that name.
+- Backend parsing:
+  - The server now prefers `payload_json` and falls back to legacy dynamic field names (e.g., `task_1_2`) for backward compatibility.
+  - Server-side validation enforces section/task limits, text/QR length, total character limits, and rejects control characters.
 
 ## Docs
 
-- Implemented changes and how to use them: `docs/IMPLEMENTED.md`
+- Implemented changes and how to use them: `docs/IMPLEMENTED.md` (includes the macros/JS/payload_json refactor)
 - Proposed improvements and roadmap: `docs/IMPROVEMENTS.md`
 - Deployment (systemd hardening, uv/venv, Docker): `docs/DEPLOYMENT.md`

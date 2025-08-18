@@ -1,14 +1,14 @@
 # Task Printer — Implemented Changes
 
-Date: 2025-08-16 (Updated: 2025-08-17)
+Date: 2025-08-16 (Updated: 2025-08-18)
 
 This document summarizes the recent improvements implemented in the Task Printer project, how they work, and how to use them.
 
 ## Overview
 
-We focused on HTML correctness and UX, non-blocking print execution, safer configuration/secret handling, and a more flexible service setup.
+We focused on HTML correctness and UX, non-blocking print execution, safer configuration/secret handling, a more flexible service setup, and a leaner frontend architecture for dynamic UI without a full SPA.
 
-## Recent Changes (August 17, 2025)
+## Recent Changes (August 18, 2025)
 
 ### Smart Font Sizing for Better Text Layout
 - **Files**: `task_printer/printing/render.py`, `tests/test_font_optimization.py`
@@ -215,3 +215,37 @@ Logging
 
 Tests
 - Added unit tests for worker orchestration, index route parsing, setup persistence, and templates printing with default.
+
+15) Frontend refactor: Jinja macros + static JS module + server JSON payload
+- Files:
+  - New: `templates/_form_macros.html` (macros: `icon_picker`, `flair_row`, `task_row`)
+  - Edited: `templates/index.html` (uses macros, injects `window.__ICONS`, removes large inline JS)
+  - New: `static/js/app.js` (dynamic form logic, payload_json creation, image preview, job polling, save-as-template, prefill)
+  - Edited: `templates/base.html` (loads `static/js/app.js` as `type="module"`)
+  - Edited: `task_printer/web/routes.py` (accepts `payload_json` with validation; legacy form parsing retained as fallback)
+- Summary:
+  - Removed large inline JS from `index.html`; centralized behavior in `static/js/app.js`.
+  - Extracted repeated HTML into Jinja macros for maintainability and consistency.
+  - Form submission now attaches a hidden `payload_json` with sections/tasks; image flair remains multipart via the file input.
+  - Server prefers `payload_json` for parsing and falls back to legacy dynamic field names for compatibility.
+- Validation:
+  - Server validates sections/tasks against MAX_* limits and control characters.
+  - For image flair, server resolves the upload via the provided field name (`flair_value`) or default `flair_image_{i}_{j}`.
+  - For QR flair, validates length and characters.
+- Prefill:
+  - `app.js` supports prefill from: server-injected `window.__PREFILL_TEMPLATE`, localStorage, or fetch by `?prefill=<id>`.
+- Backwards compatibility:
+  - Legacy dynamic fields still work when `payload_json` is absent.
+- Developer guidance:
+  - Prefer editing macros in `_form_macros.html` for repeated markup changes.
+  - Add dynamic behaviors in `static/js/app.js`; do not reintroduce large inline scripts.
+
+16) HTML/Jinja correctness and linting plan
+- Fixes:
+  - Validated and corrected `_form_macros.html` to remove malformed Jinja conditions and stray/unbalanced tags.
+- Tooling plan:
+  - Adopt `djlint` for HTML/Jinja linting in CI (ignore long Tailwind class lines as needed).
+  - Enable Jinja StrictUndefined to catch undefined variables early; audit templates using `|default` or `or ''` where appropriate.
+- Follow-ups:
+  - Add pre-commit hook and CI job to run `scripts/validate_templates.py` and djlint.
+  - Document StrictUndefined expectations in AGENTS.md and update examples to include `|default`.

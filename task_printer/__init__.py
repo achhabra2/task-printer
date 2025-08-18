@@ -21,6 +21,7 @@ from typing import Optional
 from flask import Flask, g, request
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import generate_csrf
+from jinja2 import StrictUndefined
 
 csrf = CSRFProtect()
 
@@ -122,6 +123,8 @@ def create_app(
         template_folder=str(templates_dir) if templates_dir.exists() else None,
         static_folder=str(static_dir) if static_dir.exists() else None,
     )
+    # Fail fast on missing variables in templates
+    app.jinja_env.undefined = StrictUndefined
 
     # Basic config and limits (mirrors current env-driven approach)
     app.secret_key = _default_secret_key()

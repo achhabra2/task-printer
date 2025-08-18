@@ -55,5 +55,9 @@
         class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100"
     >
         {% block content %}{% endblock %}
+        <script
+            type="module"
+            src="{{ url_for('static', filename='js/app.js') }}"
+        ></script>
     </body>
 </html>

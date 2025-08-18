@@ -1,0 +1,53 @@
+[project]
+name = "task-printer"
+version = "0.0.0"
+description = "Task Printer — Flask app to print tasks on thermal receipt printers"
+readme = "README.md"
+requires-python = ">=3.9"
+
+# Optional project metadata helps tooling, but is not required for runtime.
+authors = [{ name = "Task Printer Contributors" }]
+
+[tool.djlint]
+# Use djlint with Jinja settings. The validate script runs:
+#   djlint templates --profile=jinja
+# This table lets you run `djlint` from the repo root without extra flags.
+profile = "jinja"
+
+# Many lines contain long Tailwind class lists; allow longer lines to reduce noise.
+max_line_length = 240
+
+# Keep indentation consistent with our templates.
+indent = 2
+
+# Format embedded assets when present (harmless if none found).
+format_js = true
+format_css = true
+format_json = true
+
+# Scope linting to our Jinja templates directory by default.
+include = "templates/**/*.html"
+
+# You can add glob patterns to exclude if needed (left empty for now).
+exclude = ""
+
+# If you want to ignore specific rules later, you can list them here (e.g., "J018").
+# See: https://djlint.com/docs/rules/
+ignore = ""
+
+# When running `djlint --fix`, these options influence the output formatting.
+# We run lint-only by default in scripts/validate_templates.py, but keeping
+# these here helps local workflows where you want to auto-fix.
+preserve_blank_lines = true
+preserve_formatting = false
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+skip-string-normalization = true
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["task_printer"]
+src_paths = ["task_printer"]

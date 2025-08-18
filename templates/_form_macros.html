@@ -1,0 +1,162 @@
+{# =============================================================================
+Task Printer — Form Macros (Jinja2) File: templates/_form_macros.html Provides
+three macros used by the index page: - icon_picker(name, icons, selected=None) -
+flair_row(section_id, task_num, icons, flair_type='none', flair_value=None) -
+task_row(section_id, task_num, icons, text='', flair_type='none',
+flair_value=None) Conventions (must match backend parsing and frontend JS): -
+Field names: - subtitle_{i} - task_{i}_{j} - flair_type_{i}_{j} -
+flair_icon_{i}_{j} - flair_image_{i}_{j} - flair_qr_{i}_{j} - Classes used by
+frontend JS: - Select (flair type): "tp-flair-type" - File input (image):
+"flair-image" - Text input (QR): "flair-qr" - Icon picker
+container:"flair-icon-picker" - Icon grid (inner): "icon-grid" - Remove task
+button: "remove-task"
+============================================================================ #}
+{# -----------------------------------------------------------------------------
+Icon picker (radio grid) Params: - name: radio group name (e.g.,
+"flair_icon_1_1") - icons: list of {name, filename} (filename is relative to
+"static/") - selected: optional selected icon name (string)
+----------------------------------------------------------------------------- #}
+{% macro icon_picker(name, icons, selected=None) %}
+<div
+    class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 sm:gap-3 mt-2 p-3 sm:p-2 bg-gray-50 dark:bg-slate-700 rounded-lg border max-h-64 overflow-y-auto icon-grid"
+>
+    {% if not icons %}
+    <em class="text-slate-500">No icons available</em>
+    {% else %} {% for ic in icons %}
+    <label
+        class="flex flex-col items-center gap-1.5 sm:gap-1 p-2 sm:p-1.5 cursor-pointer hover:bg-white dark:hover:bg-slate-600 rounded-md transition-all duration-200 min-h-[5.5rem] sm:min-h-[4.5rem] border-2 border-transparent has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 dark:has-[:checked]:bg-blue-900/30 has-[:checked]:shadow-md hover:shadow-sm"
+    >
+        <input
+            type="radio"
+            name="{{ name }}"
+            value="{{ ic.name }}"
+            class="peer sr-only"
+            {% if selected and ic.name == selected %}checked{% endif %}
+        />
+        <div
+            class="w-10 h-10 sm:w-8 sm:h-8 lg:w-9 lg:h-9 flex items-center justify-center bg-white rounded-md shadow-sm border border-gray-200 dark:border-slate-600 peer-checked:border-blue-500 peer-checked:shadow-md"
+        >
+            <img
+                src="{{ url_for('static', filename=ic.filename) }}"
+                alt="{{ ic.name }}"
+                class="w-8 h-8 sm:w-6 sm:h-6 lg:w-7 lg:h-7 object-contain"
+                onerror="this.style.display='none'"
+            />
+        </div>
+        <span
+            class="text-xs font-medium text-center leading-tight text-gray-700 dark:text-gray-300 peer-checked:text-blue-600 dark:peer-checked:text-blue-400 capitalize"
+        >
+            {{ ic.name.replace('_', ' ') }}
+        </span>
+    </label>
+    {% endfor %} {% endif %}
+</div>
+{% endmacro %} {#
+-----------------------------------------------------------------------------
+Flair row (type select + icon picker + image/qr inputs) Params: - section_id:
+numeric/string section id - task_num: numeric/string index within the section -
+icons: list passed to icon_picker - flair_type: 'none' | 'icon' | 'image' | 'qr'
+- flair_value: when 'icon' => icon name; when 'qr' => payload; images cannot be
+prefilled
+----------------------------------------------------------------------------- #}
+{% macro flair_row(section_id, task_num, icons, flair_type='none',
+flair_value=None) %} {% set _ftype = (flair_type or 'none')|lower %} {% set
+is_icon = (_ftype == 'icon') %} {% set is_image = (_ftype == 'image') %} {% set
+is_qr = (_ftype == 'qr') %}
+
+<div class="flair-row mb-4" data-for="{{ section_id }}_{{ task_num }}">
+    <label class="block mb-2 font-semibold text-gray-600 dark:text-gray-200"
+        >Flair:</label
+    >
+
+    <div class="flex items-center gap-2 mb-3">
+        <select
+            name="flair_type_{{ section_id }}_{{ task_num }}"
+            class="tp-flair-type p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+        >
+            <option
+                value="none"
+                {%
+                if
+                not
+                is_icon
+                and
+                not
+                is_image
+                and
+                not
+                is_qr
+                %}selected{%
+                endif
+                %}
+            >
+                None
+            </option>
+            <option value="icon" {% if is_icon %}selected{% endif %}>
+                Icon
+            </option>
+            <option value="image" {% if is_image %}selected{% endif %}>
+                Image
+            </option>
+            <option value="qr" {% if is_qr %}selected{% endif %}>QR</option>
+        </select>
+
+        <input
+            type="file"
+            name="flair_image_{{ section_id }}_{{ task_num }}"
+            class="flair-image {% if not is_image %}hidden{% endif %}"
+            accept="image/*"
+        />
+
+        <img
+            class="flair-preview hidden w-10 h-10 object-contain border border-dashed border-gray-300 rounded"
+            alt="preview"
+        />
+
+        <input
+            type="text"
+            name="flair_qr_{{ section_id }}_{{ task_num }}"
+            class="flair-qr {% if not is_qr %}hidden{% endif %} p-1.5 text-xs border rounded dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600"
+            placeholder="QR data"
+            value="{% if is_qr and flair_value %}{{ flair_value }}{% endif %}"
+        />
+    </div>
+
+    <div class="flair-icon-picker {% if not is_icon %}hidden{% endif %}">
+        {{ icon_picker("flair_icon_%s_%s" % (section_id, task_num), icons,
+        selected=(flair_value if is_icon else None)) }}
+    </div>
+</div>
+{% endmacro %} {#
+-----------------------------------------------------------------------------
+Task row (label + text input + remove button) and its flair row Params: -
+section_id, task_num: identifiers (strings/ints) - icons: list passed to
+flair_row/icon_picker - text: initial task text (optional) - flair_type,
+flair_value: pass-through to flair_row
+----------------------------------------------------------------------------- #}
+{% macro task_row(section_id, task_num, icons, text='', flair_type='none',
+flair_value=None) %}
+<div class="task-input mb-4">
+    <div class="flex items-center gap-2 mb-2">
+        <label class="font-semibold text-gray-600 dark:text-gray-200"
+            >Task {{ task_num }}:</label
+        >
+        <button
+            type="button"
+            class="remove-task inline-flex items-center justify-center w-8 h-8 rounded-md bg-red-600 text-white hover:bg-red-700 flex-shrink-0 text-sm"
+            title="Remove task"
+        >
+            ✕
+        </button>
+    </div>
+    <input
+        type="text"
+        name="task_{{ section_id }}_{{ task_num }}"
+        placeholder="Enter task {{ task_num }}..."
+        value="{{ text or '' }}"
+        class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-3"
+    />
+</div>
+
+{{ flair_row(section_id, task_num, icons, flair_type=flair_type,
+flair_value=flair_value) }} {% endmacro %}
