@@ -3,7 +3,7 @@ block content %}
 <div class="max-w-4xl mx-auto p-5">
     {{ topbar( title="Jobs", actions=[ {'label': '← Back', 'href': '/',
     'variant': 'outline'}, {'label': '📚 Templates', 'href': '/templates',
-    'variant': 'outline'}, {'label': '⚙️ Settings', 'href': '/settings',
+    'variant': 'outline'}, {'label': '⚙️ Settings', 'href': '/setup',
     'variant': 'outline'} ], show_theme_toggle=True ) }}
     <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
         <div class="flex items-center justify-end gap-2 mb-3 flex-wrap">
@@ -60,8 +60,11 @@ block content %}
                             {{ j.updated_at }}
                         </td>
                         <td class="px-2.5 py-2 font-mono">
-                            {% if j.total %}total={{ j.total }} {% endif %}{% if
-                            j.origin %}origin={{ j.origin }}{% endif %}
+                            {# Guard optional keys under StrictUndefined #}
+                            {% set _total = j.get('total') %}
+                            {% if _total is not none %}total={{ _total }} {% endif %}
+                            {% set _origin = j.get('origin') %}
+                            {% if _origin %}origin={{ _origin }}{% endif %}
                         </td>
                     </tr>
                     {% else %}
