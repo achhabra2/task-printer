@@ -332,6 +332,43 @@ def _ensure_schema(db: sqlite3.Connection) -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_order ON tasks(section_id, position)",
         )
 
+        # jobs persistence (print history)
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS jobs (
+              id           TEXT PRIMARY KEY,
+              type         TEXT NOT NULL,
+              status       TEXT NOT NULL,
+              created_at   TEXT NOT NULL,
+              updated_at   TEXT NOT NULL,
+              total        INTEGER,
+              origin       TEXT,
+              options_json TEXT,
+              error        TEXT
+            )
+            """,
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS job_items (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              job_id      TEXT NOT NULL,
+              position    INTEGER NOT NULL,
+              subtitle    TEXT,
+              task        TEXT,
+              flair_type  TEXT,
+              flair_value TEXT,
+              flair_size  INTEGER,
+              assigned    TEXT,
+              due         TEXT,
+              priority    TEXT,
+              assignee    TEXT,
+              FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+            )
+            """,
+        )
+        db.execute("CREATE INDEX IF NOT EXISTS idx_job_items_job ON job_items(job_id)")
+
         # Initialize schema_version if empty
         cur = db.execute("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
         row = cur.fetchone()
@@ -345,7 +382,9 @@ def _ensure_schema(db: sqlite3.Connection) -> None:
 
 def _migrate(db: sqlite3.Connection, current: int, target: int) -> None:
     """
-    Incremental migrations from `current` to `target`. Currently schema_version=1.
+    Incremental migrations from `current` to `target`.
+    v1 → v2: add metadata columns to tasks
+    Future: add jobs tables if missing.
     """
     logger.info("Migrating DB schema from v%s to v%s", current, target)
     ver = int(current)
@@ -372,6 +411,50 @@ def _migrate(db: sqlite3.Connection, current: int, target: int) -> None:
                 ver = 2
                 db.execute("INSERT INTO schema_version (version) VALUES (?)", (ver,))
                 continue
+            # For future versions, ensure jobs tables exist without bumping version when adding idempotent tables
+            try:
+                db.execute("SELECT 1 FROM jobs LIMIT 1")
+            except Exception:
+                db.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS jobs (
+                      id           TEXT PRIMARY KEY,
+                      type         TEXT NOT NULL,
+                      status       TEXT NOT NULL,
+                      created_at   TEXT NOT NULL,
+                      updated_at   TEXT NOT NULL,
+                      total        INTEGER,
+                      origin       TEXT,
+                      options_json TEXT,
+                      error        TEXT
+                    )
+                    """,
+                )
+            try:
+                db.execute("SELECT 1 FROM job_items LIMIT 1")
+            except Exception:
+                db.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS job_items (
+                      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                      job_id      TEXT NOT NULL,
+                      position    INTEGER NOT NULL,
+                      subtitle    TEXT,
+                      task        TEXT,
+                      flair_type  TEXT,
+                      flair_value TEXT,
+                      flair_size  INTEGER,
+                      assigned    TEXT,
+                      due         TEXT,
+                      priority    TEXT,
+                      assignee    TEXT,
+                      FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+                    )
+                    """,
+                )
+                db.execute("CREATE INDEX IF NOT EXISTS idx_job_items_job ON job_items(job_id)")
+            ver = target
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (ver,))
             # No other migrations
             ver = target
             db.execute("INSERT INTO schema_version (version) VALUES (?)", (ver,))
@@ -432,6 +515,147 @@ def create_template(name: str, notes: Optional[str], sections: Iterable[SectionI
                     ),
                 )
         return tid
+
+
+# ----- Jobs persistence API --------------------------------------------------
+
+def record_job(
+    job_id: str,
+    kind: str,
+    status: str,
+    *,
+    total: Optional[int] = None,
+    origin: Optional[str] = None,
+    options: Optional[Dict[str, Any]] = None,
+    items: Optional[Iterable[Dict[str, Any]]] = None,
+) -> None:
+    """
+    Persist a job and optional item rows.
+
+    items: iterable of dicts with keys: subtitle, task, flair (mapping), metadata (mapping)
+    """
+    import json
+
+    db = get_db()
+    now = _iso_now()
+    with db:
+        db.execute(
+            """
+            INSERT OR REPLACE INTO jobs (id, type, status, created_at, updated_at, total, origin, options_json)
+            VALUES (?, ?, ?, COALESCE((SELECT created_at FROM jobs WHERE id=?), ?), ?, ?, ?, ?)
+            """,
+            (
+                job_id,
+                kind,
+                status,
+                job_id,
+                now,
+                now,
+                int(total) if total is not None else None,
+                origin,
+                json.dumps(options or {}),
+            ),
+        )
+        if items is not None:
+            for idx, it in enumerate(items, 1):
+                subtitle = str((it.get("subtitle") or "").strip()) if isinstance(it, dict) else ""
+                task = str((it.get("task") or "").strip()) if isinstance(it, dict) else ""
+                flair_type = None
+                flair_value = None
+                flair_size = None
+                md = None
+                if isinstance(it, dict):
+                    f = it.get("flair") if isinstance(it.get("flair"), dict) else None
+                    if f:
+                        flair_type = (f.get("type") or None)
+                        flair_value = (f.get("value") or None)
+                        try:
+                            flair_size = int(f.get("size")) if f.get("size") is not None else None
+                        except Exception:
+                            flair_size = None
+                    md = it.get("metadata") or it.get("meta")
+                db.execute(
+                    """
+                    INSERT INTO job_items (job_id, position, subtitle, task, flair_type, flair_value, flair_size, assigned, due, priority, assignee)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        job_id,
+                        idx,
+                        subtitle or None,
+                        task or None,
+                        flair_type,
+                        flair_value,
+                        flair_size,
+                        (md or {}).get("assigned") if isinstance(md, dict) else None,
+                        (md or {}).get("due") if isinstance(md, dict) else None,
+                        (md or {}).get("priority") if isinstance(md, dict) else None,
+                        (md or {}).get("assignee") if isinstance(md, dict) else None,
+                    ),
+                )
+
+
+def update_job_status(job_id: str, *, status: Optional[str] = None, error: Optional[str] = None) -> None:
+    db = get_db()
+    sets = []
+    params: List[Any] = []
+    if status is not None:
+        sets.append("status = ?")
+        params.append(status)
+    if error is not None:
+        sets.append("error = ?")
+        params.append(error)
+    sets.append("updated_at = ?")
+    params.append(_iso_now())
+    params.append(job_id)
+    with db:
+        db.execute(f"UPDATE jobs SET {', '.join(sets)} WHERE id = ?", params)
+
+
+def list_jobs_db(limit: Optional[int] = 200) -> List[Dict[str, Any]]:
+    db = get_db()
+    q = "SELECT id, type, status, created_at, updated_at, total, origin FROM jobs ORDER BY created_at DESC"
+    if limit and int(limit) > 0:
+        q += " LIMIT ?"
+        cur = db.execute(q, (int(limit),))
+    else:
+        cur = db.execute(q)
+    rows = [dict(r) for r in cur.fetchall()]
+    return rows
+
+
+def get_job_db(job_id: str) -> Optional[Dict[str, Any]]:
+    db = get_db()
+    cur = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+    job = cur.fetchone()
+    if job is None:
+        return None
+    cur = db.execute(
+        """
+        SELECT * FROM job_items WHERE job_id = ? ORDER BY position ASC
+        """,
+        (job_id,),
+    )
+    items = [dict(r) for r in cur.fetchall()]
+    d = dict(job)
+    d["items"] = items
+    return d
+
+
+def cleanup_old_jobs(days: int = 90) -> int:
+    """
+    Delete jobs (and cascading items) older than N days.
+    Returns number of jobs deleted.
+    """
+    import datetime as _dt
+
+    db = get_db()
+    threshold = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=int(days))).isoformat()
+    with db:
+        cur = db.execute("SELECT COUNT(*) AS c FROM jobs WHERE created_at < ?", (threshold,))
+        count = int(cur.fetchone()["c"])
+        db.execute("DELETE FROM jobs WHERE created_at < ?", (threshold,))
+    return count
 
 
 def _rows_to_template_dict(trow: sqlite3.Row, sections_rows: List[sqlite3.Row]) -> Dict[str, Any]:

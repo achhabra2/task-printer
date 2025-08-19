@@ -1,6 +1,6 @@
 [project]
 name = "task-printer"
-version = "0.0.0"
+version = "0.1.0"
 description = "Task Printer — Flask app to print tasks on thermal receipt printers"
 readme = "README.md"
 requires-python = ">=3.9"

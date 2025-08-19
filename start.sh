@@ -4,14 +4,6 @@
 
 set -euo pipefail
 
-echo "Starting Task Printer..."
-echo "Web interface will be available at:"
-echo "  Local:  http://localhost:5000"
-echo "  Network: http://$(hostname -I | awk '{print $1}'):5000"
-echo ""
-echo "Press Ctrl+C to stop the server"
-echo ""
-
 # Env overrides:
 # USE_UV=true          # Use uv to run inside managed venv
 # VENV_PATH=/path/.venv  # Use specific venv path

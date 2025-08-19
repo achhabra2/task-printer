@@ -188,3 +188,29 @@ Press `Ctrl+C` in the terminal where the application is running.
 - Implemented changes and how to use them: `docs/IMPLEMENTED.md` (includes the macros/JS/payload_json refactor)
 - Proposed improvements and roadmap: `docs/IMPROVEMENTS.md`
 - Deployment (systemd hardening, uv/venv, Docker): `docs/DEPLOYMENT.md`
+
+## HTTP API (v1)
+
+- Submit a print job:
+  - POST `/api/v1/jobs` with `Content-Type: application/json`
+  - Body:
+    ```json
+    {
+      "sections": [
+        {"subtitle": "Kitchen", "tasks": [
+          {"text": "Wipe counter", "flair_type": "icon", "flair_value": "cleaning"}
+        ]},
+        {"subtitle": "Hall", "tasks": [
+          {"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"}
+        ]}
+      ],
+      "options": {"tear_delay_seconds": 2.5}
+    }
+    ```
+  - Response: `202 Accepted` with JSON `{ id, status: "queued", links: { self, job } }` and `Location` header to `/api/v1/jobs/{id}`.
+- Get job status:
+  - GET `/api/v1/jobs/{id}` → JSON `{ id, status, ... }` or `404`.
+- Notes:
+  - Enforces the same limits as the web UI (max sections/tasks/chars; control chars rejected).
+  - For `flair_type: "image"`, pass a server-local path to an image file (API does not accept multipart uploads).
+  - When `options.tear_delay_seconds > 0`, the worker prints receipts without cutting and sleeps between tasks.

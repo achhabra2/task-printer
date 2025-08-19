@@ -225,6 +225,41 @@ def _default_context_for(name: str) -> Dict:
         )
     elif name == "jobs.html":
         base.update({"jobs": _dummy_jobs()})
+    elif name == "jobs_view.html":
+        base.update(
+            {
+                "job": {
+                    "id": "deadbeefcafebabe12345678",
+                    "type": "tasks",
+                    "status": "success",
+                    "created_at": "2025-01-01T10:00:00Z",
+                    "updated_at": "2025-01-01T10:05:00Z",
+                    "total": 2,
+                    "origin": "validator",
+                    "options": {"tear_delay_seconds": 0},
+                    "items": [
+                        {
+                            "position": 1,
+                            "subtitle": "Kitchen",
+                            "task": "Wipe counters",
+                            "flair_type": "icon",
+                            "flair_value": "sample",
+                            "assigned": "2025-01-02",
+                            "due": "2025-01-03",
+                            "priority": "H",
+                            "assignee": "Aman",
+                        },
+                        {
+                            "position": 2,
+                            "subtitle": "Kitchen",
+                            "task": "Sweep floor",
+                            "flair_type": "qr",
+                            "flair_value": "https://example.com",
+                        },
+                    ],
+                },
+            },
+        )
     elif name == "templates.html":
         base.update({"templates": _dummy_templates()})
     elif name == "loading.html":

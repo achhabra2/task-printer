@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_components.html" import topbar, btn, flash_messages, card %}
+{% block content %}
+<div class="max-w-4xl mx-auto p-5">
+  {{ topbar(
+      title='Job Details',
+      actions=[
+        {'label': '← Jobs', 'href': '/jobs', 'variant': 'outline'},
+        {'label': '🏠 Home', 'href': '/', 'variant': 'outline'},
+        {'label': '⚙️ Settings', 'href': '/setup', 'variant': 'outline'}
+      ],
+      show_theme_toggle=True
+  ) }}
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+    {% if error is defined and error %}
+      <div class="text-center text-red-600 dark:text-red-400 py-8">{{ error }}</div>
+    {% elif not job %}
+      <div class="text-center text-slate-500 py-8">Job not found.</div>
+    {% else %}
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <div class="text-xs uppercase text-slate-500">Job ID</div>
+          <div class="font-mono break-all">{{ job.get('id') }}</div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-slate-500">Type</div>
+          <div>{{ job.get('type') }}</div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-slate-500">Status</div>
+          <div class="font-semibold">{{ job.get('status') }}</div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-slate-500">Created</div>
+          <div class="font-mono">{{ job.get('created_at') }}</div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-slate-500">Updated</div>
+          <div class="font-mono">{{ job.get('updated_at') }}</div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-slate-500">Origin</div>
+          <div>{{ job.get('origin') or '' }}</div>
+        </div>
+        <div>
+          <div class="text-xs uppercase text-slate-500">Total Items</div>
+          <div>{{ job.get('total') or (job.get('items')|length if job.get('items') is not none else '') }}</div>
+        </div>
+      </div>
+
+      {% set opts = job.get('options') or {} %}
+      {% if opts %}
+      <div class="mt-4">
+        <div class="text-xs uppercase text-slate-500 mb-1">Options</div>
+        <div class="text-sm text-slate-700 dark:text-slate-200">
+          {% if opts.get('tear_delay_seconds') is not none %}
+            <span class="mr-3">tear_delay_seconds={{ opts.get('tear_delay_seconds') }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="mt-6">
+        <div class="text-base font-semibold mb-2">Items</div>
+        {% if not job.get('items') %}
+          <div class="text-slate-500">No item details persisted for this job.</div>
+        {% else %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-slate-100 dark:bg-slate-700">
+                <th class="text-left px-2.5 py-2">#</th>
+                <th class="text-left px-2.5 py-2">Subtitle</th>
+                <th class="text-left px-2.5 py-2">Task</th>
+                <th class="text-left px-2.5 py-2">Flair</th>
+                <th class="text-left px-2.5 py-2">Metadata</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for it in job.get('items') %}
+              <tr class="border-b border-gray-200 dark:border-slate-700 align-top">
+                <td class="px-2.5 py-2 font-mono">{{ it.get('position') or loop.index }}</td>
+                <td class="px-2.5 py-2">{{ it.get('subtitle') or '' }}</td>
+                <td class="px-2.5 py-2">{{ it.get('task') or '' }}</td>
+                <td class="px-2.5 py-2">
+                  {% set ftype = it.get('flair_type') %}
+                  {% set fval = it.get('flair_value') %}
+                  {% if ftype %}
+                    {{ ftype }}{% if fval %}: {{ fval }}{% endif %}
+                  {% endif %}
+                </td>
+                <td class="px-2.5 py-2 text-xs text-slate-600 dark:text-slate-300">
+                  {% set assigned = it.get('assigned') %}
+                  {% set due = it.get('due') %}
+                  {% set priority = it.get('priority') %}
+                  {% set assignee = it.get('assignee') %}
+                  {% if assigned %}<div>assigned={{ assigned }}</div>{% endif %}
+                  {% if due %}<div>due={{ due }}</div>{% endif %}
+                  {% if priority %}<div>priority={{ priority }}</div>{% endif %}
+                  {% if assignee %}<div>assignee={{ assignee }}</div>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

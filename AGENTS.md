@@ -30,6 +30,7 @@ Repository map (refactored)
     - `logging.py` — centralized logging configuration (JSON logging support, request ID hooks)
 - `task_printer/web/` — HTTP layer (each module may register a Flask blueprint)
   - `routes.py` — main UI / index pages (blueprint `web_bp`)
+  - `api.py` — versioned JSON API (`/api/v1`) for job submission and status (`api_bp`)
   - `setup.py` — setup flow & saving config (`setup_bp`)
   - `jobs.py` — jobs list and status endpoints (`jobs_bp`)
   - `health.py` — `/healthz` reporting (`health_bp`)
@@ -114,6 +115,8 @@ Tear-off mode
 
 Routes (now implemented as blueprints)
 - `GET/POST /` — main UI and job enqueueing (`task_printer.web.routes:web_bp`)
+- `POST /api/v1/jobs` — submit a JSON job (202 Accepted) (`task_printer.web.api:api_bp`)
+- `GET /api/v1/jobs/<id>` — job status JSON (`task_printer.web.api:api_bp`)
 - `GET/POST /setup` — config UI + save (`task_printer.web.setup:setup_bp`)
 - `POST /setup_test_print` — test print using current setup inputs (implemented inside `setup_bp`)
 - `POST /test_print` — queue a test print with saved config

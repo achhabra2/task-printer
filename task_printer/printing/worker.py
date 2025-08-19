@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from task_printer.core.assets import resolve_icon_path
+from task_printer.core import db as dbh
 from task_printer.core.config import load_config
 from task_printer.printing.render import (
     render_large_text_image,
@@ -86,6 +87,10 @@ def _create_job(kind: str, meta: Optional[Dict[str, Any]] = None) -> str:
     with JOBS_LOCK:
         _prune_jobs_if_needed()
         JOBS[job_id] = job
+    try:
+        dbh.record_job(job_id, kind, "queued", total=job.get("total"), origin=job.get("origin"), options=None, items=None)
+    except Exception:
+        pass
     return job_id
 
 
@@ -98,6 +103,10 @@ def _update_job(job_id: Optional[str], **updates: Any) -> None:
             return
         job.update(updates)
         job["updated_at"] = _utc_now_iso()
+        try:
+            dbh.update_job_status(job_id, status=job.get("status"), error=job.get("error"))
+        except Exception:
+            pass
 
 
 def _generate_icon_placeholder(key: str, width: int):
@@ -440,6 +449,35 @@ def enqueue_tasks(subtitle_tasks: Iterable[SubtitleTask], options: Optional[Mapp
     except Exception:
         pass
     job_id = _create_job("tasks", meta=meta)
+    # Persist job + items
+    try:
+        # Normalize items to mapping
+        def _norm(it: SubtitleTask) -> Dict[str, Any]:
+            if isinstance(it, (list, tuple)):
+                return {"subtitle": it[0] if len(it) > 0 else "", "task": it[1] if len(it) > 1 else ""}
+            if isinstance(it, dict):
+                return dict(it)
+            return {"subtitle": "", "task": str(it)}
+
+        norm_items = [_norm(x) for x in payload]
+        dbh.record_job(
+            job_id,
+            "tasks",
+            "queued",
+            total=meta.get("total") if isinstance(meta, dict) else None,
+            origin=meta.get("origin") if isinstance(meta, dict) else None,
+            options=dict(options) if options else None,
+            items=norm_items,
+        )
+        # Cleanup old jobs (90 days default; overridable via env var)
+        try:
+            days = int(os.environ.get("TASKPRINTER_JOBS_RETENTION_DAYS", "90"))
+        except Exception:
+            days = 90
+        if days > 0:
+            dbh.cleanup_old_jobs(days=days)
+    except Exception:
+        pass
     JOB_QUEUE.put({"type": "tasks", "payload": payload, "options": dict(options) if options else None, "job_id": job_id})
     return job_id
 
@@ -452,6 +490,16 @@ def enqueue_test_print(config_override: Optional[Mapping[str, Any]] = None, orig
     if origin:
         meta["origin"] = origin
     job_id = _create_job("test", meta=meta or None)
+    try:
+        dbh.record_job(job_id, "test", "queued", total=None, origin=origin, options=dict(config_override) if config_override else None, items=None)
+        try:
+            days = int(os.environ.get("TASKPRINTER_JOBS_RETENTION_DAYS", "90"))
+        except Exception:
+            days = 90
+        if days > 0:
+            dbh.cleanup_old_jobs(days=days)
+    except Exception:
+        pass
     logger.info("enqueue_test_print: created job id=%s", job_id)
     JOB_QUEUE.put(
         {"type": "test", "job_id": job_id, "config_override": dict(config_override) if config_override else None},

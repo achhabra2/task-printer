@@ -69,6 +69,15 @@ Restart behavior:
 - `index.html` shows a small status banner and polls when a `job` query param is present.
 - New Jobs page (`/jobs`) lists recent jobs with auto-refresh and links to JSON.
 
+7b) Jobs Persistence (90‑day history)
+- Files: `task_printer/core/db.py`, `task_printer/printing/worker.py`, `task_printer/web/jobs.py`, `task_printer/__init__.py`
+- Change: Persist jobs and their tasks to SQLite so history survives restarts.
+- Schema: `jobs` (id, type, status, created_at, updated_at, total, origin, options_json, error), `job_items` (job_id, position, subtitle, task, flair fields, metadata).
+- Lifecycle: jobs are recorded at enqueue; status transitions update the DB. Items mirror the payload at enqueue time.
+- Retention: automatic cleanup of jobs older than 90 days (configurable via `TASKPRINTER_JOBS_RETENTION_DAYS`).
+- UI: `/jobs` now lists from the DB and overlays live status from the in‑memory queue when available.
+- API: `GET /jobs/<id>` returns live status if present, otherwise a minimal record from the DB.
+
 8) Logging enhancements
 - File: `app.py`
 - Centralized logging with request IDs and journald fallback.
@@ -108,6 +117,7 @@ Restart behavior:
 - If unset, `config.json` defaults to XDG locations as described above.
 - `TASKPRINTER_JSON_LOGS`: If set to `true/1/yes`, emits JSON logs instead of plain text.
 - `TASKPRINTER_FONT_PATH`: Optional path to a TTF font to use when rendering text.
+- `TASKPRINTER_JOBS_RETENTION_DAYS`: Days to retain job history in SQLite (default: 90). Set to `0` to disable cleanup.
 
 ## Systemd Service
 
@@ -269,3 +279,38 @@ Tests
 - Files: `task_printer/core/db.py`, `task_printer/web/templates.py`
 - DB schema (v2): tasks table adds `assigned`, `due`, `priority`, `assignee`. Migration adds columns to existing DBs.
 - Templates JSON includes `metadata` per task; printing from templates passes `meta` to the worker so metadata is rendered.
+
+19) JSON API (v1) for Job Submission
+- Files: `task_printer/web/api.py`, `task_printer/__init__.py`, `tests/test_api_jobs.py`, `README.md`, `AGENTS.md`
+- Summary: Adds a versioned HTTP API to programmatically submit print jobs and fetch job status following common REST conventions.
+
+Endpoints
+- `POST /api/v1/jobs` — submit a print job asynchronously.
+  - Request: `Content-Type: application/json`
+    - Body shape:
+      - `sections`: array of `{ subtitle: str, tasks: [ { text: str, flair_type: "none|icon|image|qr|emoji", flair_value?: str, metadata?: {assigned,due,priority,assignee} } ] }`
+      - `options`: `{ tear_delay_seconds?: number }` (0–60; >0 enables tear‑off mode without cutting)
+  - Response: `202 Accepted` with JSON `{ id, status: "queued", links: { self, job } }`
+    - Headers: `Location: /api/v1/jobs/{id}`
+  - Validation: matches web UI limits (max sections/tasks/lengths, total char cap, control characters rejected).
+  - Notes: For `flair_type: "image"`, pass a server‑local image path (multipart upload is not supported by this endpoint).
+
+- `GET /api/v1/jobs/<id>` — return job status JSON.
+  - Returns live in‑memory status when available, else a minimal persisted record; `404` if not found.
+
+Behavior
+- The API is CSRF‑exempt and returns standard status codes: `202` (accepted), `400` (validation), `404` (not found), `415` (wrong content type), `500` (enqueue errors), `503` (service not configured).
+- Jobs are enqueued through the existing worker (`ensure_worker`, `enqueue_tasks`).
+
+Examples
+```bash
+curl -s -X POST http://localhost:5000/api/v1/jobs \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "sections": [
+      {"subtitle": "Kitchen", "tasks": [{"text": "Wipe counter", "flair_type": "icon", "flair_value": "cleaning"}]},
+      {"subtitle": "Hall", "tasks": [{"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"}]}
+    ],
+    "options": {"tear_delay_seconds": 2.5}
+  }'
+```

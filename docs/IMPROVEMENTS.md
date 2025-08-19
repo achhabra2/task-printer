@@ -44,6 +44,10 @@ This document outlines potential future improvements, grouped by impact and area
 
 - CSRF protection: Add Flask-WTF and CSRF tokens for `/`, `/setup`, and `/restart`.
 - Error handling UX: Clear error banners with actionable steps (permissions, cable, IP, groups).
+- HTTP API v1 enhancements:
+  - Support idempotent job creation via `Idempotency-Key` header.
+  - Optional multipart variant to upload image flair directly (`POST /api/v1/jobs` with `multipart/form-data`).
+  - Authn/z for API endpoints (token header or simple API key file) when exposed beyond LAN.
 
 ## Reliability & Printer Handling
 
