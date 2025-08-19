@@ -12,6 +12,7 @@ Recent frontend refactor: the dynamic form UI is now driven by small Jinja form 
 - Supports USB, network, and serial receipt printers (via python-escpos)
 - Dynamic task and subtitle sections
   - Per‑print tear‑off mode (optional delay between tasks, no cut)
+ - Templates: save, load, edit, duplicate, delete, and print reusable task sets
 - Frontend powered by:
   - Jinja form macros for reusable UI (icon picker, flair row, task row)
   - A single static module `static/js/app.js` for add/remove rows, flair toggles, job polling, image preview, save-as-template, and prefill
@@ -140,7 +141,9 @@ task-printer/
 │   ├── _components.html        # UI macros (buttons, cards, flashes, etc.)
 │   ├── _form_macros.html       # Form macros (icon picker, flair row, task row)
 │   ├── base.html               # Base layout (loads Tailwind + static/js/app.js)
-│   └── index.html              # Main UI (uses form macros)
+│   ├── index.html              # Main UI (uses form macros)
+│   ├── templates.html          # Templates list (Load, Edit, Print, Duplicate, Delete)
+│   └── template_edit.html      # Edit a saved template
 ├── static/
 │   ├── styles/app.css          # Minimal styling and tokens
 │   ├── js/app.js               # Frontend module (add/remove rows, prefill, JSON payload)

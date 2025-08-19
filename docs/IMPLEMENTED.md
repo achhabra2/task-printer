@@ -173,18 +173,20 @@ Storage & DB
 
 Routes (blueprint `templates_bp`)
 - `GET /templates` → HTML list (JSON only when explicitly requested via `?format=json` or `Accept: application/json` without `text/html`).
-- `POST /templates` → Create from JSON or form (supports flair icon/QR; image uploads when posted as multipart).
+- `POST /templates` → Create from JSON or form (supports flair icon/QR/emoji; image uploads when posted as multipart).
 - `GET /templates/<id>` → Full JSON structure for prefill.
+- `GET /templates/<id>/edit` → HTML edit form.
 - `POST /templates/<id>/update` → Replace entire structure.
 - `POST /templates/<id>/delete` → Delete.
 - `POST /templates/<id>/duplicate` → Duplicate (optional `new_name`; auto-suffix on conflicts).
 - `POST /templates/<id>/print` → Queue print using stored data; updates `last_used_at`.
 
 UI
-- New page: `templates/templates.html` to list templates with actions: Load (prefill index), Print Now, Duplicate, Delete.
+- New page: `templates/templates.html` to list templates with actions: Load (prefill index), Edit, Print Now, Duplicate, Delete.
+- New page: `templates/template_edit.html` to edit a saved template using the same dynamic UI as the index page.
 - Index integrations (`templates/index.html`):
   - Added “📚 Templates” link and “💾 Save as Template” button.
-  - Save posts JSON (icon/QR flair preserved; image flair intentionally skipped in JSON flow due to browser file input limitations).
+  - Save posts JSON (icon/QR/emoji flair preserved; image flair intentionally skipped in JSON flow due to browser file input limitations).
   - Prefill logic reads a saved template from `localStorage` and rebuilds the dynamic form with flair applied.
 - Content negotiation tweaked to prefer HTML by default on `/templates`.
 

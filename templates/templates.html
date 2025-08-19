@@ -73,6 +73,8 @@ flash_messages, card %} {% block content %}
                                 {{ btn("📥 Load", variant="secondary",
                                 size="sm", onclick="loadFromBtn(this)") }}
 
+                                {{ btn("✏️ Edit", href=("/templates/" ~ t.id ~ "/edit"), variant="outline", size="sm") }}
+
                                 <form
                                     class="inline-block"
                                     method="POST"

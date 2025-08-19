@@ -137,6 +137,8 @@ def _parse_sections_from_form() -> Tuple[List[Dict[str, Any]], Optional[str]]:
                     flair_value = qr_val
             elif flair_type == "image":
                 file_key = f"flair_image_{section_idx}_{task_num}"
+                existing_key = f"flair_image_existing_{section_idx}_{task_num}"
+                # Prefer a newly uploaded file if present
                 if file_key in request.files:
                     file = request.files.get(file_key)
                     if file and file.filename:
@@ -160,6 +162,11 @@ def _parse_sections_from_form() -> Tuple[List[Dict[str, Any]], Optional[str]]:
                         dest = os.path.join(MEDIA_PATH, unique)
                         file.save(dest)
                         flair_value = dest
+                # Otherwise, preserve any existing stored path when provided by the form
+                if flair_value is None:
+                    ex_val = (form.get(existing_key, "") or "").strip()
+                    if ex_val:
+                        flair_value = ex_val
 
             # Optional metadata (details)
             assigned = (form.get(f"detail_assigned_{section_idx}_{task_num}", "") or "").strip()
@@ -337,6 +344,32 @@ def update_template_route(template_id: int):
             return {"error": str(e)}, 400
         flash(f"Error updating template: {e!s}", "error")
         return redirect(url_for("templates.list_templates_route"))
+
+
+@templates_bp.get("/templates/<int:template_id>/edit")
+def edit_template_page(template_id: int):
+    """Render an edit form for a template with dynamic sections/tasks.
+
+    The form posts back to /templates/<id>/update using multipart form data
+    so users can optionally upload new images. Existing image flair values are
+    preserved via hidden inputs when no new file is provided.
+    """
+    t = dbh.get_template(template_id)
+    if not t:
+        return {"error": "not_found"}, 404
+    # Discover icons for the icon picker macro/UI
+    try:
+        from task_printer.core.assets import get_available_icons
+
+        icons = get_available_icons()
+    except Exception:
+        icons = []
+
+    return render_template(
+        "template_edit.html",
+        template=t,
+        icons=icons,
+    )
 
 
 @templates_bp.post("/templates/<int:template_id>/delete")

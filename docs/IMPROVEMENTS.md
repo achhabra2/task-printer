@@ -25,19 +25,20 @@ This document outlines potential future improvements, grouped by impact and area
 - **setup_fedora.sh**: Installs `google-noto-emoji-fonts` along with existing dependencies; still supports interactive/non-interactive modes.
 
 ## New: Templates (Saved task sets)
-- We added a SQLite-backed Templates feature so you can save, list, load, edit, duplicate, delete, and print grouped tasks with optional flair (icon/image/QR).
+- We added a SQLite-backed Templates feature so you can save, list, load, edit, duplicate, delete, and print grouped tasks with optional flair (icon/image/QR/emoji).
 - Where to find it:
-  - Main page: "💾 Save as Template" button saves the current form (icon/QR flair included; image flair requires multipart form).
-  - Templates page: "📚 Templates" lists saved templates with actions: Load (prefill main form), Print Now, Duplicate, Delete.
+  - Main page: "💾 Save as Template" button saves the current form (icon/QR/emoji flair included; image flair requires multipart form on create/edit).
+  - Templates page: "📚 Templates" lists saved templates with actions: Load (prefill main form), Edit, Print Now, Duplicate, Delete.
 - Printing uses the existing background worker. Template prints appear in Jobs with normal status updates.
 - Paths and configuration:
   - Database path: TASKPRINTER_DB_PATH (fallback to XDG data dir).
   - Media uploads (image flair) are stored under TASKPRINTER_MEDIA_PATH.
 - API endpoints (HTML/JSON):
   - GET /templates (HTML by default; JSON when Accept: application/json without text/html, or ?format=json)
-  - POST /templates (create), GET /templates/<id> (prefill JSON)
+  - POST /templates (create), GET /templates/<id> (prefill JSON), GET /templates/<id>/edit (HTML edit form)
   - POST /templates/<id>/update, /duplicate, /delete, /print
 - Limits and security: CSRF on all POSTs, server-side limits for sections, tasks, and lengths, and control-character rejection.
+- Edit form behavior: image flair is preserved when you don’t upload a new file (hidden `flair_image_existing_{i}_{j}` keeps the stored path).
 - See docs/IMPLEMENTED.md for the full breakdown.
 
 ## High-Impact / Next Steps

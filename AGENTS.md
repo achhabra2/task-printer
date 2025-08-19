@@ -124,6 +124,16 @@ Routes (now implemented as blueprints)
 - `GET /jobs` — jobs list UI; `GET /jobs/<id>` — job status JSON (`task_printer.web.jobs:jobs_bp`)
 - `GET /healthz` — config/worker/printer/emoji status JSON (`task_printer.web.health:health_bp`). A small health badge appears on the Index page.
 
+Templates (blueprint: `task_printer.web.templates:templates_bp`)
+- `GET /templates` — list templates (HTML by default; JSON with `?format=json` or `Accept: application/json` without `text/html`).
+- `POST /templates` — create a template from JSON or form.
+- `GET /templates/<id>` — fetch one template (JSON) for prefill.
+- `GET /templates/<id>/edit` — edit page (HTML).
+- `POST /templates/<id>/update` — replace name/notes/structure; multipart enables new image uploads.
+- `POST /templates/<id>/duplicate` — duplicate with optional `new_name`.
+- `POST /templates/<id>/delete` — delete.
+- `POST /templates/<id>/print` — print using stored data; honors global default tear‑off delay if set.
+
 Coding guidelines for agents
 - Use `create_app(...)` when writing tests. You can pass `register_worker=False` to avoid the background worker in unit tests.
 - Logging: use `app.logger.*` and the helpers in `task_printer.core.logging`. Do not use plain `print()`.

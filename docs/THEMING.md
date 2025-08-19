@@ -310,7 +310,7 @@ Add:
 
 Modify:
 - templates/base.html (include Tailwind + app.css; dark mode toggle wiring; macro imports if desired)
-- templates/index.html, templates/setup.html, templates/jobs.html, templates/templates.html, templates/loading.html (remove inline styles; add Tailwind classes; use macros)
+- templates/index.html, templates/setup.html, templates/jobs.html, templates/templates.html, templates/template_edit.html, templates/loading.html (remove inline styles; add Tailwind classes; use macros)
 
 Optional (build-time):
 - tailwind.config.js (Option B)
