@@ -4,7 +4,7 @@ three macros used by the index page: - icon_picker(name, icons, selected=None) -
 flair_row(section_id, task_num, icons, flair_type='none', flair_value=None) -
 task_row(section_id, task_num, icons, text='', flair_type='none',
 flair_value=None) Conventions (must match backend parsing and frontend JS): -
-Field names: - subtitle_{i} - task_{i}_{j} - flair_type_{i}_{j} -
+Field names: - category_{i} - task_{i}_{j} - flair_type_{i}_{j} -
 flair_icon_{i}_{j} - flair_image_{i}_{j} - flair_qr_{i}_{j} - flair_emoji_{i}_{j} - Classes used by
 frontend JS: - Select (flair type): "tp-flair-type" - File input (image):
 "flair-image" - Text input (QR): "flair-qr" - Icon picker

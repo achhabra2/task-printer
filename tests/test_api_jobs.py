@@ -32,7 +32,7 @@ def test_api_submit_job_success(tmp_path, monkeypatch):
     def _fake_enqueue(payload, options=None):
         # Validate payload shape roughly
         assert isinstance(payload, list) and len(payload) == 2
-        assert payload[0]["subtitle"] == "Kitchen"
+        assert payload[0]["category"] == "Kitchen"
         assert payload[0]["task"] == "Wipe counter"
         assert payload[1]["flair"]["type"] == "qr"
         captured["options"] = options
@@ -46,13 +46,13 @@ def test_api_submit_job_success(tmp_path, monkeypatch):
     payload = {
         "sections": [
             {
-                "subtitle": "Kitchen",
+                "category": "Kitchen",
                 "tasks": [
                     {"text": "Wipe counter", "flair_type": "icon", "flair_value": "cleaning", "metadata": {"assigned": "2024-01-01"}},
                 ],
             },
             {
-                "subtitle": "Hall",
+                "category": "Hall",
                 "tasks": [
                     {"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"},
                 ],
@@ -88,10 +88,9 @@ def test_api_submit_job_validation(tmp_path, monkeypatch):
     long_qr = "x" * 600
     payload = {
         "sections": [
-            {"subtitle": "S", "tasks": [{"text": "T", "flair_type": "qr", "flair_value": long_qr}]}
+            {"category": "S", "tasks": [{"text": "T", "flair_type": "qr", "flair_value": long_qr}]}
         ]
     }
     r = client.post("/api/v1/jobs", data=json.dumps(payload), headers={"Content-Type": "application/json"})
     assert r.status_code == 400
     assert "error" in r.get_json()
-

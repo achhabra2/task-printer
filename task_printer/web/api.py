@@ -10,7 +10,7 @@ Endpoints:
 Payload shape (POST /api/v1/jobs):
 {
   "sections": [
-    {"subtitle": str, "tasks": [
+    {"category": str, "tasks": [
       {"text": str, "flair_type": "none|icon|image|qr|emoji", "flair_value": str, "metadata": {assigned,due,priority,assignee}}
     ]}
   ],
@@ -43,7 +43,7 @@ def _env_int(name: str, default: int) -> int:
 MAX_SECTIONS = _env_int("TASKPRINTER_MAX_SECTIONS", 50)
 MAX_TASKS_PER_SECTION = _env_int("TASKPRINTER_MAX_TASKS_PER_SECTION", 50)
 MAX_TASK_LEN = _env_int("TASKPRINTER_MAX_TASK_LEN", 200)
-MAX_SUBTITLE_LEN = _env_int("TASKPRINTER_MAX_SUBTITLE_LEN", 100)
+MAX_CATEGORY_LEN = _env_int("TASKPRINTER_MAX_CATEGORY_LEN", _env_int("TASKPRINTER_MAX_SUBTITLE_LEN", 100))
 MAX_TOTAL_CHARS = _env_int("TASKPRINTER_MAX_TOTAL_CHARS", 5000)
 MAX_QR_LEN = _env_int("TASKPRINTER_MAX_QR_LEN", 512)
 MAX_UPLOAD_SIZE = _env_int("TASKPRINTER_MAX_UPLOAD_SIZE", 5 * 1024 * 1024)
@@ -123,16 +123,16 @@ def submit_job():
     for s_idx, sec in enumerate(sections, start=1):
         if not isinstance(sec, dict):
             return _json_error(f"sections[{s_idx}] must be an object", 400)
-        subtitle = (sec.get("subtitle") or "").strip()
+        subtitle = (sec.get("category") or sec.get("subtitle") or "").strip()
         if not subtitle:
-            return _json_error(f"sections[{s_idx}].subtitle is required", 400)
-        if len(subtitle) > MAX_SUBTITLE_LEN:
+            return _json_error(f"sections[{s_idx}].category is required", 400)
+        if len(subtitle) > MAX_CATEGORY_LEN:
             return _json_error(
-                f"Subtitle in section {s_idx} is too long (max {MAX_SUBTITLE_LEN}).",
+                f"Category in section {s_idx} is too long (max {MAX_CATEGORY_LEN}).",
                 400,
             )
         if _has_control_chars(subtitle):
-            return _json_error("Subtitles cannot contain control characters.", 400)
+            return _json_error("Categories cannot contain control characters.", 400)
         total_chars += len(subtitle)
 
         tasks = sec.get("tasks") or []
@@ -221,7 +221,7 @@ def submit_job():
                         "assignee": assignee,
                     }
 
-            subtitle_tasks.append({"subtitle": subtitle, "task": text, "flair": flair, "meta": meta})
+            subtitle_tasks.append({"category": subtitle, "task": text, "flair": flair, "meta": meta})
 
         if s_idx > MAX_SECTIONS:
             return _json_error(f"Too many sections (max {MAX_SECTIONS}).", 400)
@@ -276,4 +276,3 @@ def job_status(job_id: str):
             "origin": db_job.get("origin"),
         }
     return _json_error("not_found", 404)
-

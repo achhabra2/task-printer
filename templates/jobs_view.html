@@ -71,7 +71,7 @@
             <thead>
               <tr class="bg-slate-100 dark:bg-slate-700">
                 <th class="text-left px-2.5 py-2">#</th>
-                <th class="text-left px-2.5 py-2">Subtitle</th>
+                <th class="text-left px-2.5 py-2">Category</th>
                 <th class="text-left px-2.5 py-2">Task</th>
                 <th class="text-left px-2.5 py-2">Flair</th>
                 <th class="text-left px-2.5 py-2">Metadata</th>
@@ -81,7 +81,7 @@
               {% for it in job.get('items') %}
               <tr class="border-b border-gray-200 dark:border-slate-700 align-top">
                 <td class="px-2.5 py-2 font-mono">{{ it.get('position') or loop.index }}</td>
-                <td class="px-2.5 py-2">{{ it.get('subtitle') or '' }}</td>
+                <td class="px-2.5 py-2">{{ it.get('category') or '' }}</td>
                 <td class="px-2.5 py-2">{{ it.get('task') or '' }}</td>
                 <td class="px-2.5 py-2">
                   {% set ftype = it.get('flair_type') %}

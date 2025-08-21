@@ -53,7 +53,7 @@ This document outlines potential future improvements, grouped by impact and area
 ## Reliability & Printer Handling
 
 - Receipt width configuration: Let users choose 58mm/80mm or pixel width; avoid device-ID heuristics.
-- Subtitle rendering: Render subtitles as images (like tasks) for consistent typography and code-page independence.
+- Category rendering: Render categories as images (like tasks) for consistent typography and code-page independence.
 - Timeouts/retries: Wrap print calls with timeouts, limited retries, and device reconnects.
 - `lsusb` fallback: If not available, attempt `pyusb` enumeration; otherwise show a helpful message.
 - Health endpoint: `/healthz` implemented and extended with emoji rendering checks; surfaced in the UI.

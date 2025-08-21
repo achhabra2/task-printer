@@ -35,7 +35,7 @@ Add a small “Print Options” block above the “Print Tasks” button:
 - Keep it unobtrusive; no JS is required for dynamic sections.
 
 Example layout (conceptual):
-- Subtitle/task form (unchanged)
+- Category/task form (unchanged)
 - New row:
   - [ Tear-off delay (seconds): (number input) ]
   - Help note below the field
@@ -65,17 +65,17 @@ Extend the worker to accept per-job options and adjust behavior accordingly.
 
 ### Public queue API
 
-- `enqueue_tasks(subtitle_tasks, options: Optional[Mapping[str, Any]] = None) -> str`
+- `enqueue_tasks(subtitle_tasks, options: Optional[Mapping[str, Any]] = None) -> str` (payload items use `category`)
   - Store an abbreviated meta entry on the job (e.g., `delay_seconds` if provided).
   - Put `options` on the queue payload: `{"type": "tasks", "payload": payload, "options": options, "job_id": job_id}`.
 
-- `print_tasks(subtitle_tasks, options: Optional[Mapping[str, Any]] = None) -> bool`
+- `print_tasks(subtitle_tasks, options: Optional[Mapping[str, Any]] = None) -> bool` (payload items use `category`)
   - Interpret options:
     - `delay = float(options.get("tear_delay_seconds", 0)) if options else 0.0`
     - `tear_mode = delay > 0`
   - Connect to the printer (unchanged).
   - Iterate items with an index and total count:
-    - Call `_print_subtitle_task_item(p, i, item, config, cut=not tear_mode)`
+    - Call `_print_subtitle_task_item(p, i, item, config, cut=not tear_mode)` (function name retained; uses item.category)
     - If `tear_mode` and not last item: `time.sleep(delay)`
 
 - `_print_worker()`:
@@ -103,7 +103,7 @@ Note:
 ## Data contracts
 
 - Web → Worker enqueue:
-  - Job payload includes: `payload` (subtitle/tasks), optional `options` dict with `tear_delay_seconds`.
+  - Job payload includes: `payload` (category/tasks), optional `options` dict with `tear_delay_seconds`.
 - Worker job meta:
   - May include a summary like `{"delay_seconds": X}` for list views or debugging.
 - Defaults:

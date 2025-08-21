@@ -106,24 +106,24 @@ import task_row, flair_row, icon_picker %}
         <!-- Task Input Form -->
         <form method="POST" id="taskForm" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <div id="subtitleSections">
+            <div id="categorySections">
                 {% if prefill_template and prefill_template.sections %} {% for
                 sec in prefill_template.sections %} {% set i = loop.index %}
                 <div
-                    class="subtitle-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7"
+                    class="category-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7"
                     data-section="{{ i }}"
                 >
                     <label
-                        for="subtitle_{{ i }}"
+                        for="category_{{ i }}"
                         class="block mb-2 font-semibold text-gray-600 dark:text-gray-200"
-                        >Subtitle (e.g., Cleaning kitchen):</label
+                        >Category (e.g., Home, Work, Project ABC):</label
                     >
                     <input
                         type="text"
-                        id="subtitle_{{ i }}"
-                        name="subtitle_{{ i }}"
-                        placeholder="Enter subtitle..."
-                        value="{{ sec.subtitle or '' }}"
+                        id="category_{{ i }}"
+                        name="category_{{ i }}"
+                        placeholder="Enter category..."
+                        value="{{ sec.category or '' }}"
                         class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-2"
                     />
                     <div class="taskContainer" id="taskContainer_{{ i }}">
@@ -141,19 +141,19 @@ import task_row, flair_row, icon_picker %}
                 </div>
                 {% endfor %} {% else %}
                 <div
-                    class="subtitle-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7"
+                    class="category-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7"
                     data-section="1"
                 >
                     <label
-                        for="subtitle_1"
+                        for="category_1"
                         class="block mb-2 font-semibold text-gray-600 dark:text-gray-200"
-                        >Subtitle (e.g., Cleaning kitchen):</label
+                        >Category (e.g., Home, Work, Project ABC):</label
                     >
                     <input
                         type="text"
-                        id="subtitle_1"
-                        name="subtitle_1"
-                        placeholder="Enter subtitle..."
+                        id="category_1"
+                        name="category_1"
+                        placeholder="Enter category..."
                         class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-2"
                     />
                     <div class="taskContainer" id="taskContainer_1">
@@ -171,9 +171,9 @@ import task_row, flair_row, icon_picker %}
             <button
                 type="button"
                 class="w-full py-2.5 rounded-md bg-brand text-white hover:bg-brand-dark mb-7"
-                onclick="TaskPrinter.addSubtitleSection()"
+                onclick="TaskPrinter.addCategorySection()"
             >
-                ➕ Add Subtitle Section
+                ➕ Add Category
             </button>
             <!-- Print Options: Tear-off delay -->
             <div class="mb-4">

@@ -88,11 +88,11 @@ def test_db_crud_and_counts(tmp_path, monkeypatch, app):
         # Create a template with 2 sections and a few tasks (with flair)
         sections: List[dict] = [
             {
-                "subtitle": "Kitchen",
+                "category": "Kitchen",
                 "tasks": [{"text": "Wipe counter", "flair_type": "icon", "flair_value": "cleaning"}],
             },
             {
-                "subtitle": "Living",
+                "category": "Living",
                 "tasks": [
                     {"text": "Vacuum", "flair_type": "qr", "flair_value": "qr:vacuum"},
                     {"text": "Dust shelves", "flair_type": "none"},
@@ -107,7 +107,7 @@ def test_db_crud_and_counts(tmp_path, monkeypatch, app):
         assert t is not None
         assert t["name"] == "Morning"
         assert len(t["sections"]) == 2
-        assert t["sections"][0]["subtitle"] == "Kitchen"
+        assert t["sections"][0]["category"] == "Kitchen"
         assert [tk["text"] for tk in t["sections"][1]["tasks"]] == ["Vacuum", "Dust shelves"]
 
         # List templates and check counts
@@ -117,11 +117,11 @@ def test_db_crud_and_counts(tmp_path, monkeypatch, app):
         # Update: rename and swap tasks order in section 2
         new_sections = [
             {
-                "subtitle": "Kitchen",
+                "category": "Kitchen",
                 "tasks": [{"text": "Wipe counter", "flair_type": "icon", "flair_value": "cleaning"}],
             },
             {
-                "subtitle": "Living",
+                "category": "Living",
                 "tasks": [
                     {"text": "Dust shelves", "flair_type": "none"},
                     {"text": "Vacuum", "flair_type": "qr", "flair_value": "qr:vacuum"},
@@ -189,13 +189,13 @@ def test_routes_templates_crud_and_print_flow(app, client, monkeypatch):
         "notes": "Daily morning routine",
         "sections": [
             {
-                "subtitle": "Kitchen",
+                "category": "Kitchen",
                 "tasks": [
                     {"text": "Wipe counter", "flair_type": "icon", "flair_value": "cleaning"},
                     {"text": "Run dishwasher", "flair_type": "none"},
                 ],
             },
-            {"subtitle": "Hall", "tasks": [{"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"}]},
+            {"category": "Hall", "tasks": [{"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"}]},
         ],
     }
     r = client.post("/templates", data=json.dumps(create_payload), headers=headers)
@@ -209,7 +209,7 @@ def test_routes_templates_crud_and_print_flow(app, client, monkeypatch):
     t = r.get_json()
     assert t["name"] == "Weekday Morning"
     assert len(t["sections"]) == 2
-    assert t["sections"][0]["subtitle"] == "Kitchen"
+    assert t["sections"][0]["category"] == "Kitchen"
 
     # List templates (request JSON)
     r = client.get("/templates", headers={"Accept": "application/json"})
@@ -223,13 +223,13 @@ def test_routes_templates_crud_and_print_flow(app, client, monkeypatch):
         "notes": "Updated",
         "sections": [
             {
-                "subtitle": "Kitchen",
+                "category": "Kitchen",
                 "tasks": [
                     {"text": "Run dishwasher", "flair_type": "none"},
                     {"text": "Wipe counter", "flair_type": "none"},
                 ],
             },
-            {"subtitle": "Hall", "tasks": [{"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"}]},
+            {"category": "Hall", "tasks": [{"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"}]},
         ],
     }
     r = client.post(f"/templates/{tid}/update", data=json.dumps(update_payload), headers=headers)
@@ -269,7 +269,7 @@ def test_routes_validation_errors_and_not_found(app, client):
     }
 
     # Missing name
-    bad = {"name": "", "sections": [{"subtitle": "A", "tasks": [{"text": "t"}]}]}
+    bad = {"name": "", "sections": [{"category": "A", "tasks": [{"text": "t"}]}]}
     r = client.post("/templates", data=json.dumps(bad), headers=headers)
     assert r.status_code == 400
     assert "error" in r.get_json()
@@ -278,7 +278,7 @@ def test_routes_validation_errors_and_not_found(app, client):
     long_qr = "x" * 600
     payload = {
         "name": "Bad QR",
-        "sections": [{"subtitle": "S", "tasks": [{"text": "T", "flair_type": "qr", "flair_value": long_qr}]}],
+        "sections": [{"category": "S", "tasks": [{"text": "T", "flair_type": "qr", "flair_value": long_qr}]}],
     }
     r = client.post("/templates", data=json.dumps(payload), headers=headers)
     assert r.status_code == 400
@@ -289,7 +289,7 @@ def test_routes_validation_errors_and_not_found(app, client):
     assert r.status_code == 404
     r = client.post(
         "/templates/999999/update",
-        data=json.dumps({"name": "x", "sections": [{"subtitle": "S", "tasks": [{"text": "T"}]}]}),
+        data=json.dumps({"name": "x", "sections": [{"category": "S", "tasks": [{"text": "T"}]}]}),
         headers=headers,
     )
     assert r.status_code == 404

@@ -72,7 +72,7 @@ Restart behavior:
 7b) Jobs Persistence (90‑day history)
 - Files: `task_printer/core/db.py`, `task_printer/printing/worker.py`, `task_printer/web/jobs.py`, `task_printer/__init__.py`
 - Change: Persist jobs and their tasks to SQLite so history survives restarts.
-- Schema: `jobs` (id, type, status, created_at, updated_at, total, origin, options_json, error), `job_items` (job_id, position, subtitle, task, flair fields, metadata).
+- Schema: `jobs` (id, type, status, created_at, updated_at, total, origin, options_json, error), `job_items` (job_id, position, category, task, flair fields, metadata).
 - Lifecycle: jobs are recorded at enqueue; status transitions update the DB. Items mirror the payload at enqueue time.
 - Retention: automatic cleanup of jobs older than 90 days (configurable via `TASKPRINTER_JOBS_RETENTION_DAYS`).
 - UI: `/jobs` now lists from the DB and overlays live status from the in‑memory queue when available.
@@ -107,7 +107,7 @@ Restart behavior:
 - On the index page, click “🧪 Test Print” to queue a test page.
 
 3) Printing tasks
-- Enter one or more subtitle sections and tasks; submit the form.
+- Enter one or more category sections and tasks; submit the form.
 - You will see a flash message that the job is queued; the background worker will print tasks.
 
 ## Environment Variables
@@ -220,7 +220,7 @@ Web/UI
 Worker
 - `enqueue_tasks(payload, options=None)` accepts per‑job `options` (currently `tear_delay_seconds`).
 - `print_tasks(..., options=...)` computes `tear_mode` and suppresses `cut()` while sleeping between items.
-- `_print_subtitle_task_item(..., cut=True)` renders feed lines but only calls `cut()` when `cut=True`.
+- `_print_subtitle_task_item(..., cut=True)` renders feed lines but only calls `cut()` when `cut=True`. (Function name retained; data uses category.)
 
 Logging
 - Logs clearly state when tear‑off mode is enabled and sleep durations.
@@ -274,13 +274,13 @@ Tests
 17) Metadata Panel (Assigned/Due/Priority/Assignee)
 - Files: `task_printer/printing/metadata.py`, `task_printer/printing/worker.py`, `templates/_form_macros.html`, `static/js/app.js`, `task_printer/web/routes.py`
 - Prints a compact panel below the task with emojis: 📋 (assigned), 📅 (due), 👤 (assignee); priority as centered ⚡ icons (Normal=⚡, High=⚡⚡, Urgent=⚡⚡⚡).
-- UI has a Details toggle per task; date inputs default to today and include quick buttons: Today, +1d, +1w, +1m.
+- UI has a Details toggle per task; date inputs are blank by default and include quick buttons: Today, +1d, +1w, +1m.
 - Server-side date validation accepts `YYYY-MM-DD`, `MM-DD`, or `MM/DD`.
 
 18) Templates Persistence — Metadata
 - Files: `task_printer/core/db.py`, `task_printer/web/templates.py`
-- DB schema (v2): tasks table adds `assigned`, `due`, `priority`, `assignee`. Migration adds columns to existing DBs.
-- Templates JSON includes `metadata` per task; printing from templates passes `meta` to the worker so metadata is rendered.
+- DB schema (v2) adds metadata columns to support jobs history and potential future use.
+- Current behavior: Templates store structure plus optional Priority and Assignee per task. Assigned/Due dates are not persisted in templates and are ignored when printing directly from a template.
 
 19) JSON API (v1) for Job Submission
 - Files: `task_printer/web/api.py`, `task_printer/__init__.py`, `tests/test_api_jobs.py`, `README.md`, `AGENTS.md`
@@ -290,7 +290,7 @@ Endpoints
 - `POST /api/v1/jobs` — submit a print job asynchronously.
   - Request: `Content-Type: application/json`
     - Body shape:
-      - `sections`: array of `{ subtitle: str, tasks: [ { text: str, flair_type: "none|icon|image|qr|emoji", flair_value?: str, metadata?: {assigned,due,priority,assignee} } ] }`
+      - `sections`: array of `{ category: str, tasks: [ { text: str, flair_type: "none|icon|image|qr|emoji", flair_value?: str, metadata?: {assigned,due,priority,assignee} } ] }`
       - `options`: `{ tear_delay_seconds?: number }` (0–60; >0 enables tear‑off mode without cutting)
   - Response: `202 Accepted` with JSON `{ id, status: "queued", links: { self, job } }`
     - Headers: `Location: /api/v1/jobs/{id}`
@@ -310,8 +310,8 @@ curl -s -X POST http://localhost:5000/api/v1/jobs \
   -H 'Content-Type: application/json' \
   -d '{
     "sections": [
-      {"subtitle": "Kitchen", "tasks": [{"text": "Wipe counter", "flair_type": "icon", "flair_value": "cleaning"}]},
-      {"subtitle": "Hall", "tasks": [{"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"}]}
+      {"category": "Kitchen", "tasks": [{"text": "Wipe counter", "flair_type": "icon", "flair_value": "cleaning"}]},
+      {"category": "Hall", "tasks": [{"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"}]}
     ],
     "options": {"tear_delay_seconds": 2.5}
   }'

@@ -10,7 +10,7 @@ Recent frontend refactor: the dynamic form UI is now driven by small Jinja form 
 - Web interface for entering and organizing tasks
 - Each task prints as a separate receipt with clear formatting
 - Supports USB, network, and serial receipt printers (via python-escpos)
-- Dynamic task and subtitle sections
+- Dynamic task and category sections
   - Per‑print tear‑off mode (optional delay between tasks, no cut)
  - Templates: save, load, edit, duplicate, delete, and print reusable task sets
 - Frontend powered by:
@@ -86,7 +86,7 @@ Recent frontend refactor: the dynamic form UI is now driven by small Jinja form 
 - These print below the task as a compact panel (grayscale) so they don’t affect the main text/flair layout.
 - JSON payloads can set per-task `metadata` directly (see below).
 - Date picker & helpers:
-  - Assigned/Due are date inputs; default to today when you add a row or open Details.
+  - Assigned/Due are date inputs. They are blank by default; use the quick buttons if you want to set them.
   - Quick buttons: Today, +1d, +1w, +1m for fast Due adjustments.
   - Server-side validation accepts YYYY-MM-DD, MM-DD, or MM/DD and checks ranges.
 
@@ -165,9 +165,10 @@ Press `Ctrl+C` in the terminal where the application is running.
 
 - Global default tear‑off delay: set `default_tear_delay_seconds` in `config.json` (0–60). When set, template prints use this value by default and the Index page preloads it into the tear‑off input. Users can override it per print.
 - Frontend JSON payload:
-  - On submit, the index form adds a hidden input `payload_json` containing `{ sections: [...] }`, where each section has `subtitle` and an array of `tasks`.
+  - On submit, the index form adds a hidden input `payload_json` containing `{ sections: [...] }`, where each section has `category` and an array of `tasks`.
   - Each task may include flair: `{ flair_type: "none" | "icon" | "image" | "qr" | "emoji", flair_value: string | null }`.
   - Each task may include metadata: `{ metadata: { assigned?: string, due?: string, priority?: string, assignee?: string } }`.
+    - Templates only keep `priority` and `assignee` when saved; dates are not stored.
   - For image flair, `flair_value` is the file input field name (e.g., `flair_image_2_3`); the actual file is sent in the multipart form under that name.
 - Backend parsing:
   - The server now prefers `payload_json` and falls back to legacy dynamic field names (e.g., `task_1_2`) for backward compatibility.
@@ -200,10 +201,10 @@ Press `Ctrl+C` in the terminal where the application is running.
     ```json
     {
       "sections": [
-        {"subtitle": "Kitchen", "tasks": [
+        {"category": "Kitchen", "tasks": [
           {"text": "Wipe counter", "flair_type": "icon", "flair_value": "cleaning"}
         ]},
-        {"subtitle": "Hall", "tasks": [
+        {"category": "Hall", "tasks": [
           {"text": "Check mail", "flair_type": "qr", "flair_value": "OPEN:MAIL"}
         ]}
       ],

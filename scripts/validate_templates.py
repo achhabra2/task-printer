@@ -240,7 +240,7 @@ def _default_context_for(name: str) -> Dict:
                     "items": [
                         {
                             "position": 1,
-                            "subtitle": "Kitchen",
+                            "category": "Kitchen",
                             "task": "Wipe counters",
                             "flair_type": "icon",
                             "flair_value": "sample",
@@ -251,7 +251,7 @@ def _default_context_for(name: str) -> Dict:
                         },
                         {
                             "position": 2,
-                            "subtitle": "Kitchen",
+                            "category": "Kitchen",
                             "task": "Sweep floor",
                             "flair_type": "qr",
                             "flair_value": "https://example.com",

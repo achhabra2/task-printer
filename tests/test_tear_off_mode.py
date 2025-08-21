@@ -85,9 +85,9 @@ def test_worker_tear_off_behavior(monkeypatch):
     monkeypatch.setattr(worker.time, "sleep", _fake_sleep)
 
     items = [
-        {"subtitle": "A", "task": "one"},
-        {"subtitle": "B", "task": "two"},
-        {"subtitle": "C", "task": "three"},
+        {"category": "A", "task": "one"},
+        {"category": "B", "task": "two"},
+        {"category": "C", "task": "three"},
     ]
 
     # Tear-off enabled
@@ -135,7 +135,7 @@ def test_index_route_parses_and_passes_delay(tmp_path, monkeypatch):
     # Post with tear-off delay 2.5
     data = {
         "csrf_token": csrf,
-        "subtitle_1": "Kitchen",
+        "category_1": "Kitchen",
         "task_1_1": "Wipe",
         "tear_delay_seconds": "2.5",
     }
@@ -187,7 +187,7 @@ def test_templates_print_uses_global_default_and_index_prefills(tmp_path, monkey
             "T1",
             None,
             [
-                {"subtitle": "S", "tasks": [{"text": "A", "flair_type": "none"}]},
+                {"category": "S", "tasks": [{"text": "A", "flair_type": "none"}]},
             ],
         )
 

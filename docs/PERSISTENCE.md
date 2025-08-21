@@ -4,7 +4,7 @@ This document describes a detailed plan to persist reusable task groupings ("tem
 
 ## Goals
 - Save/load reusable groupings so users don’t retype common lists.
-- Persist structure: sections (aka subtitles) with multiple tasks, in order.
+- Persist structure: sections (aka categories) with multiple tasks, in order.
 - Persist per-task flair (icon/image/QR) and relevant options.
 - Enable quick actions: Print Now, Load to form, Duplicate, Rename, Delete.
 - Keep the solution simple, portable, and robust for single-user LAN usage.
@@ -36,11 +36,11 @@ CREATE TABLE IF NOT EXISTS templates (
   last_used_at  TEXT
 );
 
--- sections (a.k.a. subtitles)
+-- sections (a.k.a. categories)
 CREATE TABLE IF NOT EXISTS sections (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   template_id  INTEGER NOT NULL,
-  subtitle     TEXT NOT NULL,
+  category     TEXT NOT NULL,
   position     INTEGER NOT NULL,
   FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE
 );
@@ -84,7 +84,7 @@ Notes:
   - `close_db(e)`: close in `teardown_request`.
   - CRUD helpers (within transactions):
     - `create_template(name, notes, sections)`
-    - `get_template(id)` → `{id, name, notes, sections: [{id, subtitle, position, tasks: [...]}, ...]}`
+    - `get_template(id)` → `{id, name, notes, sections: [{id, category, position, tasks: [...]}, ...]}`
     - `list_templates()` (with counts)
     - `update_template(id, name, notes, sections)` (replace strategy)
     - `delete_template(id)`
@@ -108,9 +108,9 @@ Notes:
     "name": "Weekday Morning",
     "notes": "Daily morning routine",
     "sections": [
-      {"subtitle": "Kitchen", "position": 0, "tasks": [
-         {"text": "Wipe counter", "position": 0, "flair_type": "icon", "flair_value": "cleaning", "metadata": {"assigned": "2025-08-18", "due": "2025-08-18", "priority": "Normal", "assignee": "Aman"}},
-         {"text": "Run dishwasher", "position": 1, "flair_type": "emoji", "flair_value": "✅", "metadata": {"due": "2025-08-19", "priority": "High"}}
+      {"category": "Kitchen", "position": 0, "tasks": [
+         {"text": "Wipe counter", "position": 0, "flair_type": "icon", "flair_value": "cleaning"},
+         {"text": "Run dishwasher", "position": 1, "flair_type": "emoji", "flair_value": "✅"}
       ]}
     ]
   }
@@ -134,11 +134,11 @@ Notes:
   - Row actions: Load (prefill index), Print Now, Rename, Duplicate, Delete.
 
 ## Printing Integration
-- Map stored structure → current print payload:
-  - For each section: subtitle.
-  - For each task: `{subtitle, task, flair, meta?}`
+  - Map stored structure → current print payload:
+  - For each section: category.
+  - For each task: `{category, task, flair, meta?}` (templates persist only `priority` and `assignee`).
     - `flair`: `{type: 'icon'|'image'|'qr'|'barcode', value: string, size?: number}`
-    - `meta`: `{assigned?: string, due?: string, priority?: string, assignee?: string}`
+    - `meta`: `{priority?: string, assignee?: string}`
   - Enqueue as a standard `tasks` job so the worker path remains unchanged.
 - Logging context: include `template_id` and `template_name` in job meta for traceability (shown in Jobs list and logs).
 
@@ -205,8 +205,8 @@ def create_template(name, notes, sections):
                          (name, notes, now, now))
         tid = cur.lastrowid
         for i, sec in enumerate(sections):
-            cur = db.execute('INSERT INTO sections (template_id, subtitle, position) VALUES (?,?,?)',
-                             (tid, sec['subtitle'], i))
+            cur = db.execute('INSERT INTO sections (template_id, category, position) VALUES (?,?,?)',
+                             (tid, sec['category'], i))
             sid = cur.lastrowid
             for j, t in enumerate(sec.get('tasks', [])):
                 db.execute('INSERT INTO tasks (section_id, text, position, flair_type, flair_value, flair_size)\

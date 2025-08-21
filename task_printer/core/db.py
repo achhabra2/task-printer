@@ -31,7 +31,7 @@ except Exception:  # pragma: no cover - fallback if Flask import ever fails
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Shared test connection for in-memory DB when running under Flask test app
 _DB_TEST_CONN: Optional[sqlite3.Connection] = None
@@ -49,7 +49,7 @@ def _env_int(name: str, default: int) -> int:
 MAX_SECTIONS = _env_int("TASKPRINTER_MAX_SECTIONS", 50)
 MAX_TASKS_PER_SECTION = _env_int("TASKPRINTER_MAX_TASKS_PER_SECTION", 50)
 MAX_TASK_LEN = _env_int("TASKPRINTER_MAX_TASK_LEN", 200)
-MAX_SUBTITLE_LEN = _env_int("TASKPRINTER_MAX_SUBTITLE_LEN", 100)
+MAX_CATEGORY_LEN = _env_int("TASKPRINTER_MAX_CATEGORY_LEN", _env_int("TASKPRINTER_MAX_SUBTITLE_LEN", 100))
 MAX_TOTAL_CHARS = _env_int("TASKPRINTER_MAX_TOTAL_CHARS", 5000)
 MAX_QR_LEN = _env_int("TASKPRINTER_MAX_QR_LEN", 512)
 
@@ -75,7 +75,7 @@ class TaskInput(TypedDict, total=False):
 
 
 class SectionInput(TypedDict, total=False):
-    subtitle: str
+    category: str  # legacy alias: subtitle
     tasks: List[TaskInput]
 
 
@@ -84,7 +84,7 @@ class Limits:
     max_sections: int = MAX_SECTIONS
     max_tasks_per_section: int = MAX_TASKS_PER_SECTION
     max_task_len: int = MAX_TASK_LEN
-    max_subtitle_len: int = MAX_SUBTITLE_LEN
+    max_category_len: int = MAX_CATEGORY_LEN
     max_total_chars: int = MAX_TOTAL_CHARS
     max_qr_len: int = MAX_QR_LEN
 
@@ -107,13 +107,13 @@ def _validate_structure(name: str, notes: Optional[str], sections: Iterable[Sect
 
     total_chars = 0
     for si, sec in enumerate(sec_list, start=1):
-        subtitle = (sec.get("subtitle") or "").strip()
+        subtitle = (sec.get("category") or sec.get("subtitle") or "").strip()
         if not subtitle:
-            raise ValueError(f"Section {si} subtitle is required.")
-        if len(subtitle) > limits.max_subtitle_len:
-            raise ValueError(f"Subtitle in section {si} is too long (max {limits.max_subtitle_len}).")
+            raise ValueError(f"Section {si} category is required.")
+        if len(subtitle) > limits.max_category_len:
+            raise ValueError(f"Category in section {si} is too long (max {limits.max_category_len}).")
         if _has_control_chars(subtitle):
-            raise ValueError("Subtitles cannot contain control characters.")
+            raise ValueError("Categories cannot contain control characters.")
         total_chars += len(subtitle)
 
         tasks = list(sec.get("tasks") or [])
@@ -297,7 +297,7 @@ def _ensure_schema(db: sqlite3.Connection) -> None:
             CREATE TABLE IF NOT EXISTS sections (
               id           INTEGER PRIMARY KEY AUTOINCREMENT,
               template_id  INTEGER NOT NULL,
-              subtitle     TEXT NOT NULL,
+              category     TEXT NOT NULL,
               position     INTEGER NOT NULL,
               FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE
             )
@@ -354,7 +354,7 @@ def _ensure_schema(db: sqlite3.Connection) -> None:
               id          INTEGER PRIMARY KEY AUTOINCREMENT,
               job_id      TEXT NOT NULL,
               position    INTEGER NOT NULL,
-              subtitle    TEXT,
+              category    TEXT,
               task        TEXT,
               flair_type  TEXT,
               flair_value TEXT,
@@ -384,6 +384,7 @@ def _migrate(db: sqlite3.Connection, current: int, target: int) -> None:
     """
     Incremental migrations from `current` to `target`.
     v1 → v2: add metadata columns to tasks
+    v2 → v3: rename 'subtitle' columns to 'category' (sections, job_items)
     Future: add jobs tables if missing.
     """
     logger.info("Migrating DB schema from v%s to v%s", current, target)
@@ -409,6 +410,19 @@ def _migrate(db: sqlite3.Connection, current: int, target: int) -> None:
                 except Exception:
                     pass
                 ver = 2
+                db.execute("INSERT INTO schema_version (version) VALUES (?)", (ver,))
+                continue
+            if ver == 2:
+                # Rename subtitle→category where supported (SQLite 3.25+); ignore if already migrated
+                try:
+                    db.execute("ALTER TABLE sections RENAME COLUMN subtitle TO category")
+                except Exception:
+                    pass
+                try:
+                    db.execute("ALTER TABLE job_items RENAME COLUMN subtitle TO category")
+                except Exception:
+                    pass
+                ver = 3
                 db.execute("INSERT INTO schema_version (version) VALUES (?)", (ver,))
                 continue
             # For future versions, ensure jobs tables exist without bumping version when adding idempotent tables
@@ -439,7 +453,7 @@ def _migrate(db: sqlite3.Connection, current: int, target: int) -> None:
                       id          INTEGER PRIMARY KEY AUTOINCREMENT,
                       job_id      TEXT NOT NULL,
                       position    INTEGER NOT NULL,
-                      subtitle    TEXT,
+                      category    TEXT,
                       task        TEXT,
                       flair_type  TEXT,
                       flair_value TEXT,
@@ -485,9 +499,9 @@ def create_template(name: str, notes: Optional[str], sections: Iterable[SectionI
         )
         tid = int(cur.lastrowid)
         for i, sec in enumerate(sections):
-            subtitle = (sec.get("subtitle") or "").strip()
+            subtitle = (sec.get("category") or sec.get("subtitle") or "").strip()
             cur = db.execute(
-                "INSERT INTO sections (template_id, subtitle, position) VALUES (?,?,?)",
+                "INSERT INTO sections (template_id, category, position) VALUES (?,?,?)",
                 (tid, subtitle, i),
             )
             sid = int(cur.lastrowid)
@@ -532,7 +546,7 @@ def record_job(
     """
     Persist a job and optional item rows.
 
-    items: iterable of dicts with keys: subtitle, task, flair (mapping), metadata (mapping)
+    items: iterable of dicts with keys: category (or legacy subtitle), task, flair (mapping), metadata (mapping)
     """
     import json
 
@@ -558,7 +572,7 @@ def record_job(
         )
         if items is not None:
             for idx, it in enumerate(items, 1):
-                subtitle = str((it.get("subtitle") or "").strip()) if isinstance(it, dict) else ""
+                subtitle = str(((it.get("category") or it.get("subtitle") or "").strip())) if isinstance(it, dict) else ""
                 task = str((it.get("task") or "").strip()) if isinstance(it, dict) else ""
                 flair_type = None
                 flair_value = None
@@ -576,7 +590,7 @@ def record_job(
                     md = it.get("metadata") or it.get("meta")
                 db.execute(
                     """
-                    INSERT INTO job_items (job_id, position, subtitle, task, flair_type, flair_value, flair_size, assigned, due, priority, assignee)
+                    INSERT INTO job_items (job_id, position, category, task, flair_type, flair_value, flair_size, assigned, due, priority, assignee)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     """,
                     (
@@ -666,7 +680,7 @@ def _rows_to_template_dict(trow: sqlite3.Row, sections_rows: List[sqlite3.Row]) 
         if sid not in sections:
             sections[sid] = {
                 "id": sid,
-                "subtitle": r["subtitle"],
+                "category": (r["category"] if "category" in r.keys() else r["subtitle"]),
                 "position": int(r["s_pos"] or 0),
                 "tasks": [],
             }
@@ -713,7 +727,7 @@ def get_template(template_id: int) -> Optional[Dict[str, Any]]:
         """
         SELECT
             s.id AS section_id,
-            s.subtitle,
+            s.category,
             s.position AS s_pos,
             t.id AS task_id,
             t.text,
@@ -794,9 +808,9 @@ def update_template(template_id: int, name: str, notes: Optional[str], sections:
         db.execute("DELETE FROM sections WHERE template_id = ?", (template_id,))
         # Insert new sections/tasks with positions
         for i, sec in enumerate(sections):
-            subtitle = (sec.get("subtitle") or "").strip()
+            subtitle = (sec.get("category") or sec.get("subtitle") or "").strip()
             cur = db.execute(
-                "INSERT INTO sections (template_id, subtitle, position) VALUES (?,?,?)",
+                "INSERT INTO sections (template_id, category, position) VALUES (?,?,?)",
                 (template_id, subtitle, i),
             )
             sid = int(cur.lastrowid)
@@ -870,10 +884,10 @@ def duplicate_template(template_id: int, new_name: Optional[str] = None) -> Opti
         # Copy sections/tasks preserving positions
         for sec in src.get("sections", []):
             cur = db.execute(
-                "INSERT INTO sections (template_id, subtitle, position) VALUES (?,?,?)",
+                "INSERT INTO sections (template_id, category, position) VALUES (?,?,?)",
                 (
                     new_tid,
-                    sec.get("subtitle"),
+                    (sec.get("category") or sec.get("subtitle")),
                     (int(sec.get("position")) if isinstance(sec.get("position"), int) else 0),
                 ),
             )

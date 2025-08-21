@@ -53,7 +53,7 @@ def _env_int(name: str, default: int) -> int:
 MAX_SECTIONS = _env_int("TASKPRINTER_MAX_SECTIONS", 50)
 MAX_TASKS_PER_SECTION = _env_int("TASKPRINTER_MAX_TASKS_PER_SECTION", 50)
 MAX_TASK_LEN = _env_int("TASKPRINTER_MAX_TASK_LEN", 200)
-MAX_SUBTITLE_LEN = _env_int("TASKPRINTER_MAX_SUBTITLE_LEN", 100)
+MAX_CATEGORY_LEN = _env_int("TASKPRINTER_MAX_CATEGORY_LEN", _env_int("TASKPRINTER_MAX_SUBTITLE_LEN", 100))
 MAX_TOTAL_CHARS = _env_int("TASKPRINTER_MAX_TOTAL_CHARS", 5000)
 MAX_QR_LEN = _env_int("TASKPRINTER_MAX_QR_LEN", 512)
 MAX_UPLOAD_SIZE = _env_int("TASKPRINTER_MAX_UPLOAD_SIZE", 5 * 1024 * 1024)
@@ -79,7 +79,7 @@ def _parse_sections_from_form() -> Tuple[List[Dict[str, Any]], Optional[str]]:
 
     Returns:
         (sections, error)
-        sections: list of {subtitle, tasks:[{text, flair_type, flair_value, flair_size?}]}
+        sections: list of {category, tasks:[{text, flair_type, flair_value, flair_size?}]}
         error: error string if a validation error is encountered; None otherwise
     """
     form = request.form
@@ -90,20 +90,22 @@ def _parse_sections_from_form() -> Tuple[List[Dict[str, Any]], Optional[str]]:
 
     section_idx = 1
     while True:
+        # Prefer new category_* fields; accept legacy subtitle_* for compatibility
+        category_key = f"category_{section_idx}"
         subtitle_key = f"subtitle_{section_idx}"
-        subtitle = (form.get(subtitle_key, "") or "").strip()
+        subtitle = (form.get(category_key, "") or form.get(subtitle_key, "") or "").strip()
         if not subtitle:
             # Stop when a missing subtitle is encountered (after first)
             if section_idx == 1:
                 break
             break
 
-        if len(subtitle) > MAX_SUBTITLE_LEN:
-            return [], f"Subtitle in section {section_idx} is too long (max {MAX_SUBTITLE_LEN})."
+        if len(subtitle) > MAX_CATEGORY_LEN:
+            return [], f"Category in section {section_idx} is too long (max {MAX_CATEGORY_LEN})."
         if _has_control_chars(subtitle):
-            return [], "Subtitles cannot contain control characters."
+            return [], "Categories cannot contain control characters."
 
-        sec_dict: Dict[str, Any] = {"subtitle": subtitle, "tasks": []}
+        sec_dict: Dict[str, Any] = {"category": subtitle, "tasks": []}
         total_chars += len(subtitle)
 
         task_num = 1
@@ -168,29 +170,22 @@ def _parse_sections_from_form() -> Tuple[List[Dict[str, Any]], Optional[str]]:
                     if ex_val:
                         flair_value = ex_val
 
-            # Optional metadata (details)
-            assigned = (form.get(f"detail_assigned_{section_idx}_{task_num}", "") or "").strip()
-            due = (form.get(f"detail_due_{section_idx}_{task_num}", "") or "").strip()
-            priority = (form.get(f"detail_priority_{section_idx}_{task_num}", "") or "").strip()
-            assignee = (form.get(f"detail_assignee_{section_idx}_{task_num}", "") or "").strip()
-            metadata = None
-            if any([assigned, due, priority, assignee]):
-                metadata = {
-                    "assigned": assigned,
-                    "due": due,
-                    "priority": priority,
-                    "assignee": assignee,
-                }
-
             sec_dict["tasks"].append(
                 {
                     "text": task,
                     "flair_type": flair_type,
                     "flair_value": flair_value,
                     "flair_size": flair_size,
-                    **({"metadata": metadata} if metadata else {}),
                 },
             )
+            # For templates: retain only priority/assignee if present
+            prio = (form.get(f"detail_priority_{section_idx}_{task_num}", "") or "").strip()
+            asg = (form.get(f"detail_assignee_{section_idx}_{task_num}", "") or "").strip()
+            if prio or asg:
+                sec_dict["tasks"][-1]["metadata"] = {
+                    **({"priority": prio} if prio else {}),
+                    **({"assignee": asg} if asg else {}),
+                }
 
             task_num += 1
             if task_num > MAX_TASKS_PER_SECTION:
@@ -245,7 +240,7 @@ def _parse_template_payload() -> Tuple[str, Optional[str], List[Dict[str, Any]],
         name = (data.get("name") or "").strip()
         notes = (data.get("notes") or None) or None
         sections = list(data.get("sections") or [])
-        # Validate metadata dates if provided
+        # For templates: keep only priority/assignee in metadata; drop assigned/due
         for si, sec in enumerate(sections, start=1):
             if not isinstance(sec, dict):
                 continue
@@ -254,12 +249,14 @@ def _parse_template_payload() -> Tuple[str, Optional[str], List[Dict[str, Any]],
                     continue
                 md = t.get("metadata") or t.get("meta")
                 if isinstance(md, dict):
-                    assigned = (md.get("assigned") or md.get("assigned_date") or "").strip()
-                    due = (md.get("due") or md.get("due_date") or "").strip()
-                    if assigned and not _valid_date_str(assigned):
-                        return "", None, [], f"Invalid assigned date in section {si} task {ti}."
-                    if due and not _valid_date_str(due):
-                        return "", None, [], f"Invalid due date in section {si} task {ti}."
+                    priority = (md.get("priority") or "").strip()
+                    assignee = (md.get("assignee") or "").strip()
+                    # Only retain if provided
+                    if priority or assignee:
+                        t["metadata"] = {k: v for k, v in {"priority": priority, "assignee": assignee}.items() if v}
+                    else:
+                        t.pop("metadata", None)
+                        t.pop("meta", None)
         if not name:
             return "", None, [], "Template name is required."
         # Allow DB layer to enforce strict validation; do a basic sanity check here
@@ -403,11 +400,11 @@ def duplicate_template_route(template_id: int):
 def _template_to_print_payload(t: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Convert a stored template into the printing payload expected by the worker:
-    List of {"subtitle": str, "task": str, "flair": {"type","value","size"?}, "meta"?: {...}}
+    List of {"category": str, "task": str, "flair": {"type","value","size"?}, "meta"?: {...}}
     """
     payload: List[Dict[str, Any]] = []
     for sec in t.get("sections", []):
-        subtitle = (sec.get("subtitle") or "") if isinstance(sec, dict) else ""
+        subtitle = (sec.get("category") or sec.get("subtitle") or "") if isinstance(sec, dict) else ""
         for task in sec.get("tasks", []):
             text = (task.get("text") or "") if isinstance(task, dict) else ""
             if not text.strip():
@@ -420,23 +417,15 @@ def _template_to_print_payload(t: Dict[str, Any]) -> List[Dict[str, Any]]:
                 flair = {"type": ftype, "value": fval}
                 if fsize is not None:
                     flair["size"] = fsize
-            meta = None
-            md = task.get("metadata") if isinstance(task, dict) else None
-            if isinstance(md, dict):
-                assigned = (md.get("assigned") or "").strip()
-                due = (md.get("due") or "").strip()
-                priority = (md.get("priority") or "").strip()
-                assignee = (md.get("assignee") or "").strip()
-                if any([assigned, due, priority, assignee]):
-                    meta = {
-                        "assigned": assigned,
-                        "due": due,
-                        "priority": priority,
-                        "assignee": assignee,
-                    }
-            item = {"subtitle": subtitle, "task": text, "flair": flair}
-            if meta:
-                item["meta"] = meta
+            item = {"category": subtitle, "task": text, "flair": flair}
+            # Include only priority/assignee metadata when present
+            if isinstance(task, dict):
+                md = task.get("metadata")
+                if isinstance(md, dict):
+                    priority = (md.get("priority") or "").strip()
+                    assignee = (md.get("assignee") or "").strip()
+                    if priority or assignee:
+                        item["meta"] = {k: v for k, v in {"priority": priority, "assignee": assignee}.items() if v}
             payload.append(item)
     return payload
 

@@ -37,7 +37,7 @@ from task_printer.printing.metadata import render_metadata_block
 # Types
 SubtitleTask = Union[
     Tuple[str, str],
-    Mapping[str, Any],  # expects keys: "subtitle", "task", optional "flair"
+    Mapping[str, Any],  # expects keys: "category" (or legacy "subtitle"), "task", optional "flair"
 ]
 
 # Globals
@@ -199,7 +199,7 @@ def _print_subtitle_task_item(
         flair = None
         meta = None
     else:
-        subtitle = str(item.get("subtitle", "") or "")
+        subtitle = str(item.get("category", "") or item.get("subtitle", "") or "")
         task = str(item.get("task", "") or "")
         flair = item.get("flair")
         meta = item.get("meta") or item.get("metadata")
@@ -207,7 +207,7 @@ def _print_subtitle_task_item(
     if not task.strip():
         return
 
-    logger.info(f"Printing receipt for task {idx}: {task.strip()} (Subtitle: {subtitle})")
+    logger.info(f"Printing receipt for task {idx}: {task.strip()} (Category: {subtitle})")
 
     # Header/new lines
     p.text("\n\n")
@@ -217,7 +217,7 @@ def _print_subtitle_task_item(
     if bool(config.get("print_separators", True)):
         p.text("------------------------------------------------\n")
 
-    # Subtitle
+    # Category
     if subtitle:
         p.set(align="left", bold=False, width=1, height=1)
         p.text(f"{subtitle}\n")
@@ -454,10 +454,10 @@ def enqueue_tasks(subtitle_tasks: Iterable[SubtitleTask], options: Optional[Mapp
         # Normalize items to mapping
         def _norm(it: SubtitleTask) -> Dict[str, Any]:
             if isinstance(it, (list, tuple)):
-                return {"subtitle": it[0] if len(it) > 0 else "", "task": it[1] if len(it) > 1 else ""}
+                return {"category": it[0] if len(it) > 0 else "", "task": it[1] if len(it) > 1 else ""}
             if isinstance(it, dict):
                 return dict(it)
-            return {"subtitle": "", "task": str(it)}
+            return {"category": "", "task": str(it)}
 
         norm_items = [_norm(x) for x in payload]
         dbh.record_job(

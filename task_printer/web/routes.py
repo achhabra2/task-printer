@@ -43,7 +43,7 @@ def _env_int(name: str, default: int) -> int:
 MAX_SECTIONS = _env_int("TASKPRINTER_MAX_SECTIONS", 50)
 MAX_TASKS_PER_SECTION = _env_int("TASKPRINTER_MAX_TASKS_PER_SECTION", 50)
 MAX_TASK_LEN = _env_int("TASKPRINTER_MAX_TASK_LEN", 200)
-MAX_SUBTITLE_LEN = _env_int("TASKPRINTER_MAX_SUBTITLE_LEN", 100)
+MAX_CATEGORY_LEN = _env_int("TASKPRINTER_MAX_CATEGORY_LEN", _env_int("TASKPRINTER_MAX_SUBTITLE_LEN", 100))
 MAX_TOTAL_CHARS = _env_int("TASKPRINTER_MAX_TOTAL_CHARS", 5000)
 MAX_QR_LEN = _env_int("TASKPRINTER_MAX_QR_LEN", 512)
 MAX_UPLOAD_SIZE = _env_int("TASKPRINTER_MAX_UPLOAD_SIZE", 5 * 1024 * 1024)
@@ -133,12 +133,12 @@ def index():
                 for s_idx, sec in enumerate(sections, start=1):
                     if not isinstance(sec, dict):
                         continue
-                    subtitle = (sec.get("subtitle") or "").strip()
+                    subtitle = (sec.get("category") or sec.get("subtitle") or "").strip()
                     if subtitle:
-                        if len(subtitle) > MAX_SUBTITLE_LEN:
-                            raise ValueError(f"Subtitle in section {s_idx} is too long (max {MAX_SUBTITLE_LEN}).")
+                        if len(subtitle) > MAX_CATEGORY_LEN:
+                            raise ValueError(f"Category in section {s_idx} is too long (max {MAX_CATEGORY_LEN}).")
                         if _has_control_chars(subtitle):
-                            raise ValueError("Subtitles cannot contain control characters.")
+                            raise ValueError("Categories cannot contain control characters.")
                         total_chars += len(subtitle)
 
                     tasks = list(sec.get("tasks") or [])
@@ -238,7 +238,7 @@ def index():
                                     "assignee": assignee,
                                 }
 
-                        subtitle_tasks.append({"subtitle": subtitle, "task": text, "flair": flair, "meta": meta})
+                        subtitle_tasks.append({"category": subtitle, "task": text, "flair": flair, "meta": meta})
 
                 if total_chars > MAX_TOTAL_CHARS:
                     raise ValueError(f"Input too large (max total characters {MAX_TOTAL_CHARS}).")
@@ -256,8 +256,10 @@ def index():
         section = 1
 
         while True:
-            subtitle_key = f"subtitle_{section}"
-            subtitle = (form.get(subtitle_key, "") or "").strip()
+            # Prefer new category_* fields; accept legacy subtitle_* for compatibility
+            subtitle_key_new = f"category_{section}"
+            subtitle_key_old = f"subtitle_{section}"
+            subtitle = (form.get(subtitle_key_new, "") or form.get(subtitle_key_old, "") or "").strip()
 
             if not subtitle and section == 1:
                 # If the first section is empty, treat as no input
@@ -266,11 +268,11 @@ def index():
                 # No more sections
                 break
 
-            if len(subtitle) > MAX_SUBTITLE_LEN:
-                flash(f"Subtitle in section {section} is too long (max {MAX_SUBTITLE_LEN}).", "error")
+            if len(subtitle) > MAX_CATEGORY_LEN:
+                flash(f"Category in section {section} is too long (max {MAX_CATEGORY_LEN}).", "error")
                 return redirect(url_for("web.index"))
             if _has_control_chars(subtitle):
-                flash("Subtitles cannot contain control characters.", "error")
+                flash("Categories cannot contain control characters.", "error")
                 return redirect(url_for("web.index"))
 
             # Find all tasks for this section
@@ -376,7 +378,7 @@ def index():
                         "assignee": assignee,
                     }
 
-                subtitle_tasks.append({"subtitle": subtitle, "task": task, "flair": flair, "meta": meta})
+                subtitle_tasks.append({"category": subtitle, "task": task, "flair": flair, "meta": meta})
                 task_num += 1
 
                 if task_num > MAX_TASKS_PER_SECTION:
@@ -388,7 +390,7 @@ def index():
                 flash(f"Too many sections (max {MAX_SECTIONS}).", "error")
                 return redirect(url_for("web.index"))
 
-        total_chars = sum(len(item.get("subtitle", "")) + len(item.get("task", "")) for item in subtitle_tasks)
+        total_chars = sum(len(item.get("category", "") or item.get("subtitle", "")) + len(item.get("task", "")) for item in subtitle_tasks)
         if total_chars > MAX_TOTAL_CHARS:
             flash(f"Input too large (max total characters {MAX_TOTAL_CHARS}).", "error")
             return redirect(url_for("web.index"))

@@ -27,8 +27,8 @@
     if (!sectionTemplate) {
       sectionTemplate = document.createElement("template");
       sectionTemplate.innerHTML = `
-        <div class="subtitle-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7" data-section="">
-          <label class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Subtitle (e.g., Cleaning kitchen):</label>
+        <div class="category-section border-b border-gray-200 dark:border-slate-700 pb-5 mb-7" data-section="">
+          <label class="block mb-2 font-semibold text-gray-600 dark:text-gray-200">Category (e.g., Home, Work, Project ABC):</label>
           <input type="text" class="w-full p-2.5 border-2 rounded-md text-sm bg-white text-gray-900 border-gray-300 focus:outline-none focus:border-brand dark:bg-slate-800 dark:text-gray-100 dark:border-slate-600 mb-2">
           <div class="taskContainer"></div>
           <button type="button" class="add-task-btn w-full py-2.5 rounded-md bg-green-600 text-white hover:bg-green-700">➕ Add Task</button>
@@ -270,9 +270,9 @@
   }
 
   function initCounts() {
-    const container = document.getElementById("subtitleSections");
+    const container = document.getElementById("categorySections");
     if (!container) return;
-    const sections = container.querySelectorAll(".subtitle-section");
+    const sections = container.querySelectorAll(".category-section");
     sectionCount = sections.length || 0;
     Array.from(sections).forEach((sec) => {
       const sid = sec.getAttribute("data-section") || "";
@@ -389,20 +389,18 @@
       if (due) due.name = `detail_due_${sectionId}_${taskNumber}`;
       if (priority) priority.name = `detail_priority_${sectionId}_${taskNumber}`;
       if (assignee) assignee.name = `detail_assignee_${sectionId}_${taskNumber}`;
-      // Default dates to today (ISO) if empty
-      const today = todayISO();
-      if (assigned && !assigned.value) assigned.value = today;
-      if (due && !due.value) due.value = today;
+      // Do not auto-populate dates; leave blank unless user chooses shortcuts
+      // Previously this defaulted to today's date and caused unintended metadata persistence.
     }
 
     return node;
   }
 
   // Create and append a new section with one empty task
-  function addSubtitleSection() {
+  function addCategorySection() {
     ensureTemplates();
 
-    const container = document.getElementById("subtitleSections");
+    const container = document.getElementById("categorySections");
     if (!container) return;
 
     sectionCount += 1;
@@ -410,12 +408,12 @@
     taskCounts[sid] = 0;
 
     const frag = sectionTemplate.content.cloneNode(true);
-    const sectionDiv = frag.querySelector(".subtitle-section");
+    const sectionDiv = frag.querySelector(".category-section");
     sectionDiv.setAttribute("data-section", sid);
 
     const subtitleInput = sectionDiv.querySelector('input[type="text"]');
-    subtitleInput.id = `subtitle_${sid}`;
-    subtitleInput.name = `subtitle_${sid}`;
+    subtitleInput.id = `category_${sid}`;
+    subtitleInput.name = `category_${sid}`;
 
     const taskContainer = sectionDiv.querySelector(".taskContainer");
 
@@ -440,7 +438,7 @@
 
   // Add a task to the specific section (button inside the section)
   function addTask(btn) {
-    const sectionDiv = btn.closest(".subtitle-section");
+    const sectionDiv = btn.closest(".category-section");
     if (!sectionDiv) return;
     const sid = sectionDiv.getAttribute("data-section");
     const taskContainer = sectionDiv.querySelector(".taskContainer");
@@ -459,7 +457,7 @@
     const taskDiv = btn.closest(".task-input");
     if (!taskDiv) return;
     const taskContainer = taskDiv.parentElement;
-    const sectionDiv = taskContainer.closest(".subtitle-section");
+    const sectionDiv = taskContainer.closest(".category-section");
     const sid = sectionDiv.getAttribute("data-section");
 
     // Find index to remove the matching flair row
@@ -474,11 +472,11 @@
     // If no tasks remain, remove the entire section
     const remainingTasks = taskContainer.querySelectorAll(".task-input");
     if (remainingTasks.length === 0) {
-      const allSections = document.getElementById("subtitleSections");
+      const allSections = document.getElementById("categorySections");
       allSections.removeChild(sectionDiv);
       // If no sections remain, create a fresh one
       if (allSections.children.length === 0) {
-        addSubtitleSection();
+        addCategorySection();
       }
       return;
     }
@@ -595,7 +593,7 @@
   // Hide remove button for the very first task in the only section; show otherwise
   function updateRemoveButtons(taskContainer) {
     const taskInputs = taskContainer.querySelectorAll(".task-input");
-    const subtitleSections = document.getElementById("subtitleSections");
+    const subtitleSections = document.getElementById("categorySections");
     const isOnlySection = subtitleSections.children.length === 1;
 
     taskInputs.forEach((input) => {
@@ -612,14 +610,14 @@
   // Serialize the form into sections/tasks JSON (excluding images)
   function collectFormSections() {
     const sections = [];
-    const container = document.getElementById("subtitleSections");
+    const container = document.getElementById("categorySections");
     if (!container) return sections;
 
-    const sectionDivs = container.querySelectorAll(".subtitle-section");
+    const sectionDivs = container.querySelectorAll(".category-section");
     sectionDivs.forEach((sec) => {
       const sid = sec.getAttribute("data-section");
       const subtitleInput =
-        sec.querySelector(`#subtitle_${sid}`) ||
+        sec.querySelector(`#category_${sid}`) ||
         sec.querySelector('input[type="text"]');
       const subtitle = ((subtitleInput && subtitleInput.value) || "").trim();
       const tasks = [];
@@ -713,7 +711,7 @@
       });
 
       if (subtitle || tasks.length) {
-        sections.push({ subtitle, tasks });
+        sections.push({ category: subtitle, tasks });
       }
     });
 
@@ -983,7 +981,7 @@
   }
 
   function prefillFromTemplateData(tpl) {
-    const container = document.getElementById("subtitleSections");
+    const container = document.getElementById("categorySections");
     if (!container) return false;
 
     try {
@@ -997,12 +995,12 @@
 
       const sections = Array.isArray(tpl.sections) ? tpl.sections : [];
       sections.forEach((sec) => {
-        addSubtitleSection();
+        addCategorySection();
         const sectionDiv = container.lastElementChild;
         if (!sectionDiv) return;
         const sid = sectionDiv.getAttribute("data-section");
-        const subInput = sectionDiv.querySelector(`#subtitle_${sid}`);
-        if (subInput) subInput.value = sec && sec.subtitle ? sec.subtitle : "";
+        const subInput = sectionDiv.querySelector(`#category_${sid}`);
+        if (subInput) subInput.value = sec && (sec.category || sec.subtitle) ? (sec.category || sec.subtitle) : "";
 
         const tasks = Array.isArray(sec.tasks) ? sec.tasks : [];
         if (tasks.length === 0) return;
@@ -1092,14 +1090,14 @@
     ensureTemplates();
     initCounts();
     // If there are no sections (fresh page with nothing rendered), create one
-    const container = document.getElementById("subtitleSections");
+    const container = document.getElementById("categorySections");
     if (container && container.children.length === 0) {
-      addSubtitleSection();
+      addCategorySection();
     } else {
       // Ensure remove buttons state is correct for existing content
       if (container) {
         const sections = container.querySelectorAll(
-          ".subtitle-section .taskContainer",
+          ".category-section .taskContainer",
         );
         Array.from(sections).forEach((tc) => updateRemoveButtons(tc));
       }
@@ -1121,21 +1119,11 @@
         e.preventDefault();
         removeTask(target);
       } else if (target.classList.contains("toggle-details")) {
-      e.preventDefault();
-      const panel = target.closest(".details").querySelector(".details-panel");
-      if (panel) {
-        const willShow = panel.classList.contains("hidden");
-        panel.classList.toggle("hidden");
-        if (willShow) {
-          // Auto-fill dates when opening if empty (ISO)
-          const container = target.closest(".details");
-          const assigned = container.querySelector(".detail-assigned");
-          const due = container.querySelector(".detail-due");
-          const today = todayISO();
-          if (assigned && !assigned.value) assigned.value = today;
-          if (due && !due.value) due.value = today;
+        e.preventDefault();
+        const panel = target.closest(".details").querySelector(".details-panel");
+        if (panel) {
+          panel.classList.toggle("hidden");
         }
-      }
       } else if (target.classList.contains("btn-date-today")) {
         e.preventDefault();
         const container = target.closest(".details") || target.closest(".flair-row") || document;
@@ -1182,8 +1170,8 @@
     populateEmojiRecents();
 
     // Expose API for legacy inline handlers support
-    window.TaskPrinter = {
-      addSubtitleSection,
+  window.TaskPrinter = {
+      addCategorySection,
       addTask,
       removeTask,
       onFlairTypeChange,

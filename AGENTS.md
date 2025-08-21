@@ -63,7 +63,7 @@ Runtime & config
   - `TASKPRINTER_EMOJI_FONT_PATH` — optional path to a monochrome emoji TTF (e.g., NotoEmoji-Regular)
   - `TASKPRINTER_MAX_UPLOAD_SIZE` — bytes for upload limit (default: 5 MiB)
   - `TASKPRINTER_MAX_CONTENT_LENGTH` — Flask `MAX_CONTENT_LENGTH` override (default: 1 MiB)
-  - Limits family: `TASKPRINTER_MAX_SECTIONS`, `TASKPRINTER_MAX_TASKS_PER_SECTION`, `TASKPRINTER_MAX_TASK_LEN`, `TASKPRINTER_MAX_SUBTITLE_LEN`, `TASKPRINTER_MAX_TOTAL_CHARS`, `TASKPRINTER_MAX_QR_LEN`
+  - Limits family: `TASKPRINTER_MAX_SECTIONS`, `TASKPRINTER_MAX_TASKS_PER_SECTION`, `TASKPRINTER_MAX_TASK_LEN`, `TASKPRINTER_MAX_CATEGORY_LEN` (fallback: `TASKPRINTER_MAX_SUBTITLE_LEN`), `TASKPRINTER_MAX_TOTAL_CHARS`, `TASKPRINTER_MAX_QR_LEN`
 - App factory behavior:
   - `create_app(...)` returns a Flask app. It:
     - Sets `app.secret_key` (from env or a dev default)
@@ -84,7 +84,7 @@ Request flow (refactored)
   - Optional per-print tear-off mode: a numeric field "Tear-off delay (seconds)" can be provided to disable cutting and add a delay between tasks for manual tear. Leave blank/0 for default behavior.
 - Worker:
   - The worker consumes jobs and prints each task with configured spacing and separators. It handles:
-    - Title/subtitle rendering
+    - Title/category rendering
     - Flair printing (icon, uploaded image, QR)
     - Task rendering (image generation via `render.py`)
     - Cut/paper spacing
@@ -181,7 +181,7 @@ Migration notes (Option A):
 
 Frontend structure (post-refactor)
 - Dynamic UI logic moved to a static module: `static/js/app.js` (loaded in `templates/base.html` via `<script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>`). This module:
-  - Adds and removes subtitle sections and tasks using DOM templates and cloneNode.
+  - Adds and removes category sections and tasks using DOM templates and cloneNode.
   - Toggles flair controls (icon/image/QR), previews image uploads, and polls job status.
   - Saves current form as a template via JSON.
   - Rebuilds the form from saved templates (prefill) using three sources: server-injected `window.__PREFILL_TEMPLATE`, `localStorage`, or `?prefill=<id>` fetch.
