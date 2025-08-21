@@ -31,6 +31,7 @@ Repository map (refactored)
 - `task_printer/web/` — HTTP layer (each module may register a Flask blueprint)
   - `routes.py` — main UI / index pages (blueprint `web_bp`)
   - `api.py` — versioned JSON API (`/api/v1`) for job submission and status (`api_bp`)
+  - `schemas.py` — Pydantic models for API request/response validation
   - `setup.py` — setup flow & saving config (`setup_bp`)
   - `jobs.py` — jobs list and status endpoints (`jobs_bp`)
   - `health.py` — `/healthz` reporting (`health_bp`)
@@ -116,13 +117,28 @@ Tear-off mode
 Routes (now implemented as blueprints)
 - `GET/POST /` — main UI and job enqueueing (`task_printer.web.routes:web_bp`)
 - `POST /api/v1/jobs` — submit a JSON job (202 Accepted) (`task_printer.web.api:api_bp`)
+- Request is validated with `task_printer.web.schemas.JobSubmitRequest` (limits injected via Pydantic context). Empty task strings are accepted by the schema and skipped during flattening.
+- Response is shaped by `JobAcceptedResponse` and includes a `Location` header pointing to `/api/v1/jobs/{id}`.
 - `GET /api/v1/jobs/<id>` — job status JSON (`task_printer.web.api:api_bp`)
+- `GET /api/v1/templates` — list templates (JSON) (`task_printer.web.api_templates:api_templates_bp`)
+- `POST /api/v1/templates` — create template (JSON, validated by Pydantic)
+- `GET /api/v1/templates/<id>` — fetch template (JSON)
+- `PUT /api/v1/templates/<id>` — update template (JSON)
+- `DELETE /api/v1/templates/<id>` — delete template
 - `GET/POST /setup` — config UI + save (`task_printer.web.setup:setup_bp`)
 - `POST /setup_test_print` — test print using current setup inputs (implemented inside `setup_bp`)
 - `POST /test_print` — queue a test print with saved config
 - `POST /restart` — exit process after responding (systemd will restart under service install)
 - `GET /jobs` — jobs list UI; `GET /jobs/<id>` — job status JSON (`task_printer.web.jobs:jobs_bp`)
 - `GET /healthz` — config/worker/printer/emoji status JSON (`task_printer.web.health:health_bp`). A small health badge appears on the Index page.
+
+Templates API (blueprint: `task_printer.web.api_templates:api_templates_bp`)
+- `GET /api/v1/templates` — list templates (JSON; validated via `TemplateListItem`).
+- `POST /api/v1/templates` — create template (JSON; validated via `TemplateCreateRequest`).
+- `GET /api/v1/templates/<id>` — fetch template (JSON; validated via `TemplateResponse`).
+- `PUT /api/v1/templates/<id>` — update template (JSON; validated via `TemplateUpdateRequest`).
+- `DELETE /api/v1/templates/<id>` — delete template.
+- `POST /api/v1/templates/<id>/print` — print from stored data; accepts optional `{ options: { tear_delay_seconds } }` and returns `{ job_id }` (validated via `TemplatePrintRequest`/`TemplatePrintResponse`).
 
 Templates (blueprint: `task_printer.web.templates:templates_bp`)
 - `GET /templates` — list templates (HTML by default; JSON with `?format=json` or `Accept: application/json` without `text/html`).
@@ -139,12 +155,20 @@ Coding guidelines for agents
 - Logging: use `app.logger.*` and the helpers in `task_printer.core.logging`. Do not use plain `print()`.
 - CSRF: All POST routes (and AJAX clients) must include a CSRF token. The app sets a `csrf_token` cookie on safe responses—read it and send via header `X-CSRFToken` or include it in form fields.
 - Validation: Enforce limits server-side (max sections/tasks/chars). Reject control characters and return helpful `flash()` messages to the UI.
+- API validation: Use Pydantic models in `task_printer.web.schemas` for request parsing/validation and response shaping. Route code should:
+  - Call `JobSubmitRequest.model_validate(payload, context={"limits": {...}})` to apply env-driven limits (`MAX_*`).
+  - Keep IO validations (e.g., image type/size, total character count) in the route.
+  - Build responses via Pydantic models and `jsonify(model.model_dump())` to keep response shape stable.
+  - For Templates API, use `TemplateCreateRequest`/`TemplateUpdateRequest` for inputs and `TemplateListItem`/`TemplateResponse` for outputs.
 - No blocking work inside request handlers: enqueue work to the worker and return quickly.
 - Blueprint registration: `create_app` attempts to import and register known blueprints, but new endpoints should be added as blueprints under `task_printer.web` and included in the default registration list or passed explicitly to `create_app`.
 - Tests: Add unit tests under `tests/` that create an app via `create_app(...)`. Use `register_worker=False` for tests that don't need the worker.
+- Schema tests can validate edge cases without Flask. See `tests/test_api_schemas.py` for limits via context, flair validation, and options clamping.
+  - API tests for Templates live in `tests/test_api_templates_api.py`.
 
 Common pitfalls (post-refactor)
 - Optional imports: `create_app` intentionally swallows missing blueprint modules to keep the scaffold non-breaking — expect to see debug logs instead of hard failures for missing files.
+- Pydantic context: Limits like `MAX_TASK_LEN` and `MAX_SECTIONS` are passed to schema validation via `context={"limits": {...}}`. Forgetting this in schema-only tests will skip those limit checks.
 - Restart behavior: `POST /restart` still exits the process. When running locally without systemd you must re-run `./start.sh` or `python3 app.py`.
 - Fonts: If fonts are absent, the rendering falls back to Pillow default. For consistent output in Docker or CI, install DejaVu fonts or set `TASKPRINTER_FONT_PATH`.
 - File paths: Templates and static files are served from repo-level `templates/` and `static/` — keep that layout to avoid surprises.

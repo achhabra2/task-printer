@@ -168,6 +168,7 @@ def create_app(
         ("task_printer.web.setup", "setup_bp"),  # setup flow
         ("task_printer.web.templates", "templates_bp"),  # templates CRUD/print
         ("task_printer.web.api", "api_bp"),  # versioned JSON API
+        ("task_printer.web.api_templates", "api_templates_bp"),  # templates CRUD API (v1)
     ]
     for import_path, attr in blueprints or default_blueprints:
         _maybe_register_blueprint(app, import_path, attr)

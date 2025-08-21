@@ -27,6 +27,7 @@ from task_printer import csrf
 from task_printer.core.assets import IMAGE_EXTS, is_supported_image
 from task_printer.core.config import MEDIA_PATH, load_config
 from task_printer.printing.worker import ensure_worker, enqueue_tasks, get_job
+from . import schemas
 
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/v1")
@@ -97,98 +98,70 @@ def submit_job():
         return _json_error("Service not configured. Complete setup at /setup.", 503)
 
     data = request.get_json(silent=True) or {}
-    sections = data.get("sections") or []
-    if not isinstance(sections, list) or not sections:
-        return _json_error("sections must be a non-empty list", 400)
-
-    options = data.get("options") or {}
-    # Clamp options
-    opts: Optional[Dict[str, Any]] = None
+    # Validate with Pydantic models (limits via context)
     try:
-        delay = float(options.get("tear_delay_seconds", 0) or 0)
-        if delay < 0:
-            delay = 0.0
-        if delay > 60:
-            delay = 60.0
-        if delay > 0:
-            opts = {"tear_delay_seconds": delay}
-    except Exception:
-        # ignore invalid option and treat as absent
-        opts = None
+        req = schemas.JobSubmitRequest.model_validate(
+            data,
+            context={
+                "limits": {
+                    "MAX_SECTIONS": MAX_SECTIONS,
+                    "MAX_TASKS_PER_SECTION": MAX_TASKS_PER_SECTION,
+                    "MAX_TASK_LEN": MAX_TASK_LEN,
+                    "MAX_CATEGORY_LEN": MAX_CATEGORY_LEN,
+                }
+            },
+        )
+    except Exception as e:
+        from pydantic import ValidationError
 
-    # Validate/flatten
+        if isinstance(e, ValidationError):
+            # Return a concise error message
+            try:
+                first_err = e.errors()[0]
+                msg = first_err.get("msg") or str(e)
+            except Exception:
+                msg = str(e)
+            return _json_error(msg, 400)
+        return _json_error("invalid JSON payload", 400)
+
+    # Clamp/prepare options for the worker
+    opts: Optional[Dict[str, Any]] = None
+    if req.options and req.options.tear_delay_seconds:
+        opts = {"tear_delay_seconds": req.options.tear_delay_seconds}
+
+    # Flatten to worker payload
     subtitle_tasks: List[Dict[str, Any]] = []
     total_chars = 0
 
-    for s_idx, sec in enumerate(sections, start=1):
-        if not isinstance(sec, dict):
-            return _json_error(f"sections[{s_idx}] must be an object", 400)
-        subtitle = (sec.get("category") or sec.get("subtitle") or "").strip()
-        if not subtitle:
-            return _json_error(f"sections[{s_idx}].category is required", 400)
-        if len(subtitle) > MAX_CATEGORY_LEN:
-            return _json_error(
-                f"Category in section {s_idx} is too long (max {MAX_CATEGORY_LEN}).",
-                400,
-            )
-        if _has_control_chars(subtitle):
-            return _json_error("Categories cannot contain control characters.", 400)
+    for s_idx, sec in enumerate(req.sections, start=1):
+        subtitle = sec.category
         total_chars += len(subtitle)
-
-        tasks = sec.get("tasks") or []
-        if not isinstance(tasks, list) or not tasks:
-            return _json_error(f"sections[{s_idx}].tasks must be a non-empty list", 400)
-        if len(tasks) > MAX_TASKS_PER_SECTION:
-            return _json_error(
-                f"Too many tasks in section {s_idx} (max {MAX_TASKS_PER_SECTION}).",
-                400,
-            )
-
-        for t_idx, t in enumerate(tasks, start=1):
-            if not isinstance(t, dict):
-                return _json_error(f"sections[{s_idx}].tasks[{t_idx}] must be an object", 400)
-            text = (t.get("text") or "").strip()
+        for t_idx, t in enumerate(sec.tasks, start=1):
+            text = (t.text or "").strip()
             if not text:
-                # silently skip empties to mirror UI behavior
-                continue
-            if len(text) > MAX_TASK_LEN:
-                return _json_error(
-                    f"Task {t_idx} in section {s_idx} is too long (max {MAX_TASK_LEN}).",
-                    400,
-                )
-            if _has_control_chars(text):
-                return _json_error("Tasks cannot contain control characters.", 400)
+                continue  # mirror UI behavior
             total_chars += len(text)
 
             flair = None
-            ftype = str(t.get("flair_type") or "none").strip().lower()
-            fval = t.get("flair_value")
-            if ftype == "icon" and fval:
-                flair = {"type": "icon", "value": fval}
-            elif ftype == "emoji" and isinstance(fval, str) and fval.strip():
-                ev = fval.strip()
-                if len(ev) > 16 or _has_control_chars(ev):
-                    return _json_error(
-                        f"Emoji value invalid in section {s_idx} task {t_idx}.",
-                        400,
-                    )
+            if t.flair_type == "icon" and t.flair_value:
+                flair = {"type": "icon", "value": t.flair_value}
+            elif t.flair_type == "emoji" and t.flair_value:
+                ev = str(t.flair_value).strip()
                 flair = {"type": "emoji", "value": ev}
-            elif ftype == "qr" and fval:
-                q = str(fval)
+            elif t.flair_type == "qr" and t.flair_value:
+                q = str(t.flair_value)
                 if len(q) > MAX_QR_LEN or _has_control_chars(q):
                     return _json_error(
                         f"QR data invalid in section {s_idx} task {t_idx}.",
                         400,
                     )
                 flair = {"type": "qr", "value": q}
-            elif ftype == "image" and fval:
-                # For API, only allow server-local path (already uploaded) to avoid multipart here
-                path = str(fval)
+            elif t.flair_type == "image" and t.flair_value:
+                path = str(t.flair_value)
                 if not is_supported_image(path):
                     exts = ", ".join(IMAGE_EXTS)
                     return _json_error(f"Unsupported image type. Use one of: {exts}", 400)
                 try:
-                    # size check if file exists
                     import os as _os
 
                     if _os.path.isfile(path):
@@ -199,21 +172,13 @@ def submit_job():
                     pass
                 flair = {"type": "image", "value": path}
 
-            # Optional metadata
             meta = None
-            m = t.get("metadata") or t.get("meta")
-            if isinstance(m, dict):
-                assigned = (m.get("assigned") or m.get("assigned_date") or "").strip()
-                due = (m.get("due") or m.get("due_date") or "").strip()
-                priority = (m.get("priority") or "").strip()
-                assignee = (m.get("assignee") or "").strip()
-                if assigned and not _valid_date_str(assigned):
-                    return _json_error(f"Invalid assigned date in section {s_idx} task {t_idx}.", 400)
-                if due and not _valid_date_str(due):
-                    return _json_error(f"Invalid due date in section {s_idx} task {t_idx}.", 400)
+            if t.metadata:
+                assigned = (t.metadata.assigned or "").strip()
+                due = (t.metadata.due or "").strip()
+                priority = (t.metadata.priority or "").strip()
+                assignee = (t.metadata.assignee or "").strip()
                 if any([assigned, due, priority, assignee]):
-                    if len(assigned) > 30 or len(due) > 30 or len(priority) > 20 or len(assignee) > 60:
-                        return _json_error("Metadata fields too long.", 400)
                     meta = {
                         "assigned": assigned,
                         "due": due,
@@ -222,9 +187,6 @@ def submit_job():
                     }
 
             subtitle_tasks.append({"category": subtitle, "task": text, "flair": flair, "meta": meta})
-
-        if s_idx > MAX_SECTIONS:
-            return _json_error(f"Too many sections (max {MAX_SECTIONS}).", 400)
 
     if total_chars > MAX_TOTAL_CHARS:
         return _json_error(f"Input too large (max total characters {MAX_TOTAL_CHARS}).", 400)
@@ -244,7 +206,8 @@ def submit_job():
     # Construct response with useful links
     api_href = url_for("api.job_status", job_id=job_id)
     ui_href = url_for("jobs.job_status", job_id=job_id)
-    resp = jsonify({"id": job_id, "status": "queued", "links": {"self": api_href, "job": ui_href}})
+    resp_model = schemas.JobAcceptedResponse(id=job_id, status="queued", links=schemas.Links(self=api_href, job=ui_href))
+    resp = jsonify(resp_model.model_dump())
     resp.status_code = 202
     resp.headers["Location"] = api_href
     return resp
