@@ -29,32 +29,84 @@ logger = logging.getLogger(__name__)
 # Pydantic models for better schema generation
 class FlairData(BaseModel):
     """Structured flair data for task decoration."""
-    type: Literal["none", "icon", "image", "qr", "emoji"]
-    value: str  # The actual flair content (icon name, image path, QR data, emoji)
-    size: int | None = None  # Optional size modifier
+    type: Annotated[
+        Literal["none", "icon", "image", "qr", "emoji"],
+        Field(description="Type of flair decoration")
+    ]
+    value: Annotated[
+        str,
+        Field(description="The actual flair content (icon name, image path, QR data, emoji)")
+    ]
+    size: Annotated[
+        int | None,
+        Field(description="Optional size modifier", ge=1, le=100, default=None)
+    ] = None
 
 
 class TaskMetadata(BaseModel):
     """Structured metadata for tasks."""
-    priority: Literal["low", "medium", "high"] | str | None = None
-    assignee: str | None = None
-    assigned: str | None = None  # Date/time assigned 
-    due: str | None = None  # Due date/time
-    tags: list[str] | None = None
-    notes: str | None = None
+    priority: Annotated[
+        Literal["low", "medium", "high"] | str | None,
+        Field(description="Task priority level", default=None)
+    ] = None
+    assignee: Annotated[
+        str | None,
+        Field(description="Person assigned to the task", max_length=60, default=None)
+    ] = None
+    assigned: Annotated[
+        str | None,
+        Field(description="Date/time assigned (YYYY-MM-DD format)", max_length=30, default=None)
+    ] = None
+    due: Annotated[
+        str | None,
+        Field(description="Due date/time (YYYY-MM-DD format)", max_length=30, default=None)
+    ] = None
+    tags: Annotated[
+        list[str] | None,
+        Field(description="List of tags", default=None)
+    ] = None
+    notes: Annotated[
+        str | None,
+        Field(description="Additional notes", default=None)
+    ] = None
 
 
 class Task(BaseModel):
     """Unified task representation for both API input and worker processing."""
     # Core task data
-    text: str  # Task text content
+    text: Annotated[
+        str,
+        Field(description="Task text content", min_length=1, max_length=200)
+    ]
     
     # Flair - supports both input formats
-    flair_type: Literal["none", "icon", "image", "qr", "emoji"] = "none"  # API input format
-    flair_value: str | None = None  # API input format
+    flair_type: Annotated[
+        Literal["none", "icon", "image", "qr", "emoji"],
+        Field(description="Type of flair decoration", default="none")
+    ] = "none"
+    flair_value: Annotated[
+        str | None,
+        Field(description="Flair content (icon name, image path, QR data, emoji)", default=None)
+    ] = None
     
     # Metadata - supports both formats
-    metadata: TaskMetadata | None = None  # API input format
+    metadata: Annotated[
+        TaskMetadata | None,
+        Field(description="Structured task metadata", default=None)
+    ] = None
+
+
+class PrintOptions(BaseModel):
+    """Print job options."""
+    tear_delay_seconds: Annotated[
+        float | None,
+        Field(
+            description="Delay between tasks during manual tear (0-60 seconds)",
+            ge=0.0,
+            le=60.0,
+            default=None
+        )
+    ] = None
 
 
 class SectionData(BaseModel):
@@ -169,20 +221,19 @@ def _register_job_tools(server: FastMCP) -> None:
     )
     def submit_job(
         sections: Annotated[
-        list[SectionData],
-        Field(
-            description="List of sections, each containing a category (str) and tasks (list). "
-            "Each task should have: text (str), flair_type ('none'|'icon'|'image'|'qr'|'emoji'), "
-            "optional flair_value (str), and optional metadata with priority, assignee, due date, etc.",
-            min_length=1,
-            max_length=50
-        )
-    ],
-        options: Annotated[
-            dict[str, Any] | None,
+            list[SectionData],
             Field(
-                description="Optional print options. Currently supports: "
-                "tear_delay_seconds (float, 0-60) for delay between tasks during manual tear",
+                description="List of sections, each containing a category (str) and tasks (list). "
+                "Each task should have: text (str), flair_type ('none'|'icon'|'image'|'qr'|'emoji'), "
+                "optional flair_value (str), and optional metadata with priority, assignee, due date, etc.",
+                min_length=1,
+                max_length=50
+            )
+        ],
+        options: Annotated[
+            PrintOptions | None,
+            Field(
+                description="Optional print options including tear delay",
                 default=None
             )
         ] = None
@@ -224,7 +275,7 @@ def _register_job_tools(server: FastMCP) -> None:
             # Validate request using existing schema
             payload = {"sections": sections}
             if options:
-                payload["options"] = options
+                payload["options"] = {"tear_delay_seconds": options.tear_delay_seconds} if options.tear_delay_seconds else None
                 
             # Get environment limits for validation context
             limits = _get_env_limits()
@@ -411,7 +462,7 @@ def _register_template_tools(server: FastMCP) -> None:
             )
         ],
         options: Annotated[
-            dict[str, Any] | None,
+            PrintOptions | None,
             Field(
                 description="Optional template options (reserved for future use)", 
                 default=None
