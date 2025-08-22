@@ -1,6 +1,6 @@
 #!/bin/bash
 # Task Printer Startup Script
-# Run this script to start the Task Printer application
+# Run this script to start the Task Printer application and MCP server
 
 set -euo pipefail
 
@@ -8,9 +8,18 @@ set -euo pipefail
 # USE_UV=true          # Use uv to run inside managed venv
 # VENV_PATH=/path/.venv  # Use specific venv path
 
+# Function to cleanup background processes on exit
+cleanup() {
+  echo "Shutting down services..."
+  kill 0
+}
+trap cleanup EXIT
+
 run_with_uv() {
   if command -v uv >/dev/null 2>&1; then
-    echo "Using uv run"
+    echo "Starting MCP server with uv..."
+    uv run mcp_server.py &
+    echo "Starting main application with uv..."
     exec uv run app.py
   fi
   return 1
@@ -19,7 +28,9 @@ run_with_uv() {
 run_with_venv() {
   local venv_bin="${VENV_PATH:-"$PWD/.venv"}/bin/python"
   if [ -x "$venv_bin" ]; then
-    echo "Using venv: $venv_bin"
+    echo "Starting MCP server with venv: $venv_bin"
+    "$venv_bin" mcp_server.py &
+    echo "Starting main application with venv: $venv_bin"
     exec "$venv_bin" app.py
   fi
   return 1
@@ -31,4 +42,7 @@ fi
 
 run_with_venv || echo "venv not found; falling back to system python"
 
+echo "Starting MCP server with system python..."
+python3 mcp_server.py &
+echo "Starting main application with system python..."
 exec python3 app.py

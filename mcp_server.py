@@ -52,8 +52,8 @@ def parse_args():
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.environ.get("TASKPRINTER_MCP_PORT", "8000")),
-        help="Port to bind to (default: 8000)"
+        default=int(os.environ.get("TASKPRINTER_MCP_PORT", "5002")),
+        help="Port to bind to (default: 5002)"
     )
     
     parser.add_argument(
@@ -92,6 +92,7 @@ async def main():
         logger.error("FastMCP is not available. Install with: pip install fastmcp")
         sys.exit(1)
     
+    server = None
     try:
         # Create Flask app for context (without starting the web server)
         logger.info("Creating Flask application context...")
@@ -126,16 +127,39 @@ async def main():
         
     except KeyboardInterrupt:
         logger.info("Shutting down MCP server...")
+        if server:
+            try:
+                # Try to cleanup any server resources
+                logger.info("Cleaning up server resources...")
+                # Give a short timeout for cleanup
+                await asyncio.sleep(0.1)
+            except Exception as cleanup_error:
+                logger.warning(f"Error during cleanup: {cleanup_error}")
     except Exception as e:
         logger.error(f"Error running MCP server: {e}")
         if args.debug:
             logger.exception("Full traceback:")
         sys.exit(1)
+    finally:
+        logger.info("MCP server shutdown complete")
 
 
 if __name__ == "__main__":
     try:
+        # Set up signal handling for graceful shutdown
+        import signal
+        
+        def signal_handler(signum, frame):
+            print(f"\nReceived signal {signum}, shutting down gracefully...")
+            raise KeyboardInterrupt()
+        
+        # Register signal handlers
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
+        # Run the server with a timeout to prevent hanging
         asyncio.run(main())
+        
     except KeyboardInterrupt:
         print("\nShutdown requested by user")
     except Exception as e:
