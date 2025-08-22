@@ -46,6 +46,7 @@ dependencies = [
     "wtforms>=3.2.1",
     "fastmcp>=2.11.0",
     "uvicorn[standard]>=0.30.6",
+    "pyjwt==2.10.1",
 ]
 [dependency-groups]
 dev = [

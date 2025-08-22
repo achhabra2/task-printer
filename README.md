@@ -10,6 +10,8 @@ Recent frontend refactor: the dynamic form UI is now driven by small Jinja form 
 - Web interface for entering and organizing tasks
 - Each task prints as a separate receipt with clear formatting
 - Supports USB, network, and serial receipt printers (via python-escpos)
+- **JWT-based authentication** for MCP (Model Context Protocol) server access
+- **MCP server integration** for AI assistant access to task printing capabilities
 - Dynamic task and category sections
   - Per‑print tear‑off mode (optional delay between tasks, no cut)
  - Templates: save, load, edit, duplicate, delete, and print reusable task sets
@@ -31,6 +33,8 @@ Recent frontend refactor: the dynamic form UI is now driven by small Jinja form 
   - python-escpos
   - Pillow
   - pyusb
+  - FastMCP (for MCP server functionality)
+  - PyJWT (for authentication)
 
 ## Installation
 1. **Clone the repository:**
@@ -56,7 +60,9 @@ Recent frontend refactor: the dynamic form UI is now driven by small Jinja form 
    Then reboot or log out/in.
 
 ## Running the App
-1. **Start the app manually:**
+
+### Web Interface
+1. **Start the web app:**
    ```bash
    # quickest
    python3 app.py
@@ -66,6 +72,31 @@ Recent frontend refactor: the dynamic form UI is now driven by small Jinja form 
 2. **Access the web interface:**
    - On the Pi: [http://localhost:5000](http://localhost:5000)
    - On your network: http://(raspberry-pi-ip):5000
+
+### MCP Server (for AI Assistants)
+The TaskPrinter includes a Model Context Protocol (MCP) server that allows AI assistants to access task printing capabilities.
+
+1. **Generate an authentication token:**
+   ```bash
+   uv run python scripts/generate_token.py
+   ```
+
+2. **Start the MCP server:**
+   ```bash
+   uv run python mcp_server.py
+   ```
+   
+   The server will start on `http://localhost:8000/mcp` with JWT authentication enabled.
+
+3. **Use with MCP clients:**
+   - Include the JWT token in the `Authorization: Bearer <token>` header
+   - The server provides tools for job submission, template management, and health checks
+   - See [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) for detailed setup and usage
+
+4. **Available MCP capabilities:**
+   - **Tools**: `submit_job`, `get_job_status`, `list_templates`, `create_template`, `print_template`, `get_health_status`, `test_print`
+   - **Resources**: `config`, `health`, `templates`, `jobs/recent`
+   - **Prompts**: `create_task_list`, `optimize_for_printing`, `template_from_description`, `print_job_assistant`, `troubleshooting_guide`
 
 ## First-Time Setup
 - On first run, you'll be guided through a web-based setup page to select your printer type, connection, and preferences.
@@ -163,6 +194,22 @@ Press `Ctrl+C` in the terminal where the application is running.
 
 ## Configuration
 
+### Authentication (MCP Server)
+- **JWT Authentication**: The MCP server uses JWT tokens for secure access
+- **Token Generation**: Use `uv run python scripts/generate_token.py` to create new tokens
+- **Token Storage**: Secrets are automatically stored in `~/.taskprinter/jwt_secret`
+- **Disable Authentication**: Set `TASKPRINTER_AUTH_ENABLED=false` to disable
+- **Token Expiration**: Tokens expire after 30 days by default
+
+### Environment Variables
+- `TASKPRINTER_MCP_HOST`: MCP server host (default: localhost)
+- `TASKPRINTER_MCP_PORT`: MCP server port (default: 8000) 
+- `TASKPRINTER_MCP_ENABLED`: Enable MCP server (default: true)
+- `TASKPRINTER_AUTH_ENABLED`: Enable JWT authentication (default: true)
+- `TASKPRINTER_JWT_SECRET`: JWT signing secret (auto-generated if not set)
+
+### General Settings
+
 - Global default tear‑off delay: set `default_tear_delay_seconds` in `config.json` (0–60). When set, template prints use this value by default and the Index page preloads it into the tear‑off input. Users can override it per print.
 - Frontend JSON payload:
   - On submit, the index form adds a hidden input `payload_json` containing `{ sections: [...] }`, where each section has `category` and an array of `tasks`.
@@ -189,6 +236,7 @@ Press `Ctrl+C` in the terminal where the application is running.
 
 ## Docs
 
+- **Authentication Setup**: `docs/AUTHENTICATION.md` (JWT authentication for MCP server)
 - Implemented changes and how to use them: `docs/IMPLEMENTED.md` (includes the macros/JS/payload_json refactor)
 - Proposed improvements and roadmap: `docs/IMPROVEMENTS.md`
 - Deployment (systemd hardening, uv/venv, Docker): `docs/DEPLOYMENT.md`

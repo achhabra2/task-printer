@@ -12,6 +12,8 @@ Environment Variables:
     TASKPRINTER_MCP_HOST: Host to bind to (default: localhost)
     TASKPRINTER_MCP_PORT: Port to bind to (default: 8000)
     TASKPRINTER_MCP_ENABLED: Enable MCP server (default: true)
+    TASKPRINTER_AUTH_ENABLED: Enable JWT authentication (default: true)
+    TASKPRINTER_JWT_SECRET: JWT signing secret (auto-generated if not set)
 """
 
 import argparse
@@ -104,6 +106,16 @@ async def main():
             sys.exit(1)
         
         logger.info(f"Starting MCP server on {args.host}:{args.port}")
+        
+        # Check authentication status
+        auth_enabled = os.environ.get("TASKPRINTER_AUTH_ENABLED", "true").lower() == "true"
+        if auth_enabled:
+            logger.info("🔒 JWT Authentication: ENABLED")
+            logger.info("   Generate tokens with: python scripts/generate_token.py")
+            logger.info("   Use tokens with: Authorization: Bearer <token>")
+        else:
+            logger.warning("🔓 JWT Authentication: DISABLED (set TASKPRINTER_AUTH_ENABLED=true to enable)")
+        
         logger.info("Available tools: submit_job, get_job_status, list_templates, get_template, create_template, print_template, get_health_status, test_print")
         logger.info("Available resources: config, health, templates, jobs/recent")
         logger.info("Available prompts: create_task_list, optimize_for_printing, template_from_description, print_job_assistant, troubleshooting_guide")
