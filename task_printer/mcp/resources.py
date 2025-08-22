@@ -7,11 +7,6 @@ health status, templates, and job information.
 
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from flask import Flask
-
 try:
     from fastmcp import FastMCP
     from fastmcp.exceptions import ResourceError
@@ -22,28 +17,24 @@ except ImportError:
     ResourceError = Exception  # Fallback for type hints
 
 
-def register_resources(server, flask_app = None) -> None:
+def register_resources(server) -> None:
     """
     Register all MCP resources with the server.
     
     Args:
         server: FastMCP server instance to register resources with.
-        flask_app: Optional Flask application for context.
     """
-    if not MCP_AVAILABLE:
-        return
+    # Core system resources - configuration and health
+    _register_system_resources(server)
     
-    # Configuration and status resources
-    _register_system_resources(server, flask_app)
+    # Template resources for template management
+    _register_template_resources(server)
     
-    # Template resources
-    _register_template_resources(server, flask_app)
-    
-    # Job resources
-    _register_job_resources(server, flask_app)
+    # Job resources for job management
+    _register_job_resources(server)
 
 
-def _register_system_resources(server, flask_app) -> None:
+def _register_system_resources(server) -> None:
     """Register system configuration and status resources."""
     
     @server.resource(
@@ -131,7 +122,7 @@ def _register_system_resources(server, flask_app) -> None:
             }
 
 
-def _register_template_resources(server, flask_app) -> None:
+def _register_template_resources(server) -> None:
     """Register template-related resources."""
     
     @server.resource(
@@ -229,7 +220,7 @@ def _register_template_resources(server, flask_app) -> None:
             }
 
 
-def _register_job_resources(server, flask_app) -> None:
+def _register_job_resources(server) -> None:
     """Register job-related resources."""
     
     @server.resource(

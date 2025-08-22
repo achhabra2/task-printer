@@ -17,17 +17,15 @@ def test_mcp_availability():
 @pytest.mark.skipif(not MCP_AVAILABLE, reason="FastMCP not available")
 def test_basic_mcp_server_creation():
     """Test basic MCP server creation."""
-    app = create_app(register_worker=False)
+    # MCP server should be standalone, not dependent on Flask app
+    server = create_mcp_server_if_available()
     
-    with app.app_context():
-        server = create_mcp_server_if_available(app)
-        
-        # Server should be created successfully
-        assert server is not None
-        
-        # Check that the server has the expected attributes
-        assert hasattr(server, 'name')
-        assert server.name == "TaskPrinter"
+    # Server should be created successfully
+    assert server is not None
+    
+    # Check that the server has the expected attributes
+    assert hasattr(server, 'name')
+    assert server.name == "TaskPrinter"
 
 
 @pytest.mark.skipif(not MCP_AVAILABLE, reason="FastMCP not available")  

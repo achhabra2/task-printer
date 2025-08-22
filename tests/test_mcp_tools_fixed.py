@@ -27,13 +27,15 @@ class TestMCPToolsActual:
 
     def test_mcp_server_creation(self, app_context):
         """Test that MCP server can be created."""
-        server = create_mcp_server_if_available(app_context)
+        # MCP server should be standalone, not dependent on Flask app
+        server = create_mcp_server_if_available()
         assert server is not None
 
     @pytest.mark.asyncio
     async def test_tools_registered(self, app_context):
         """Test that all expected tools are registered."""
-        server = create_mcp_server(app_context)
+        # MCP server should be standalone, not dependent on Flask app
+        server = create_mcp_server()
         tools = await server.get_tools()
         
         expected_tools = {
@@ -47,7 +49,8 @@ class TestMCPToolsActual:
     @pytest.mark.asyncio 
     async def test_resources_registered(self, app_context):
         """Test that all expected resources are registered."""
-        server = create_mcp_server(app_context)
+        # MCP server should be standalone, not dependent on Flask app
+        server = create_mcp_server()
         resources = await server.get_resources()
         
         expected_resources = {
@@ -63,7 +66,8 @@ class TestMCPToolsActual:
     @pytest.mark.asyncio
     async def test_prompts_registered(self, app_context):
         """Test that all expected prompts are registered."""
-        server = create_mcp_server(app_context)
+        # MCP server should be standalone, not dependent on Flask app
+        server = create_mcp_server()
         prompts = await server.get_prompts()
         
         expected_prompts = {
@@ -77,7 +81,8 @@ class TestMCPToolsActual:
     @pytest.mark.asyncio
     async def test_tool_count(self, app_context):
         """Test that we have the expected number of tools, resources, and prompts."""
-        server = create_mcp_server(app_context)
+        # MCP server should be standalone, not dependent on Flask app
+        server = create_mcp_server()
         
         tools = await server.get_tools()
         resources = await server.get_resources()
@@ -94,7 +99,8 @@ class TestMCPGracefulDegradation:
 
     def test_mcp_server_creation_when_available(self, app_context):
         """Test server creation when MCP is available."""
-        server = create_mcp_server_if_available(app_context)
+        # MCP server should be standalone, not dependent on Flask app
+        server = create_mcp_server_if_available()
         assert server is not None
 
     def test_app_creation_with_mcp_enabled(self, app_context):
@@ -105,10 +111,10 @@ class TestMCPGracefulDegradation:
 
     @patch('task_printer.mcp.MCP_AVAILABLE', False)
     def test_app_creation_with_mcp_disabled(self):
-        """Test that app creation works with MCP disabled.""" 
+        """Test that app creation works with MCP disabled."""
         app = create_app()
         assert app is not None
         
-        with app.app_context():
-            server = create_mcp_server_if_available(app)
-            assert server is None
+        # MCP server should be standalone, not dependent on Flask app
+        server = create_mcp_server_if_available()
+        assert server is None

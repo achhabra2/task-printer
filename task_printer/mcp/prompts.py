@@ -7,11 +7,6 @@ structured templates for creating tasks and interacting with the printer.
 
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from flask import Flask
-
 try:
     from fastmcp import FastMCP
     MCP_AVAILABLE = True
@@ -20,28 +15,24 @@ except ImportError:
     FastMCP = None
 
 
-def register_prompts(server, flask_app = None) -> None:
+def register_prompts(server) -> None:
     """
     Register all MCP prompts with the server.
     
     Args:
         server: FastMCP server instance to register prompts with.
-        flask_app: Optional Flask application for context.
     """
-    if not MCP_AVAILABLE:
-        return
+    # Task creation and optimization prompts
+    _register_task_creation_prompts(server)
     
-    # Task creation prompts
-    _register_task_creation_prompts(server, flask_app)
+    # Template-related prompts
+    _register_template_prompts(server)
     
-    # Template management prompts
-    _register_template_prompts(server, flask_app)
-    
-    # System assistance prompts
-    _register_system_prompts(server, flask_app)
+    # System and troubleshooting prompts
+    _register_system_prompts(server)
 
 
-def _register_task_creation_prompts(server, flask_app) -> None:
+def _register_task_creation_prompts(server) -> None:
     """Register prompts for task creation and structuring."""
     
     @server.prompt()
@@ -179,7 +170,7 @@ Return the optimized structure with explanations for changes made.
 """
 
 
-def _register_template_prompts(server, flask_app) -> None:
+def _register_template_prompts(server) -> None:
     """Register prompts for template creation and management."""
     
     @server.prompt()
@@ -252,7 +243,7 @@ Focus on creating a practical, reusable template that saves time and ensures con
 """
 
 
-def _register_system_prompts(server, flask_app) -> None:
+def _register_system_prompts(server) -> None:
     """Register prompts for system assistance and guidance."""
     
     @server.prompt()

@@ -3,19 +3,45 @@ MCP tools for Task Printer operations.
 
 This module implements MCP tools that expose task-printer functionality
 for job submission, status checking, and template management.
+
+Type Definitions:
+- FlairData: Structured flair information with specific types and optional sizing
+- TaskMetadata: Rich metadata for tasks including priority, assignee, dates, etc.
+- Task: Unified task representation for both API input and worker processing
+- SectionData: Collection of tasks grouped by category
 """
 
 from __future__ import annotations
 
+import logging
 import os
-from typing import Annotated, Any, TypedDict, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from flask import Flask
+from typing import Annotated, Any, Literal, TypedDict
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import Field
+
+
+# Get logger for this module
+logger = logging.getLogger(__name__)
+
+
+# Type definitions for flair and metadata specificity
+class FlairData(TypedDict, total=False):
+    """Structured flair data for task decoration."""
+    type: Literal["none", "icon", "image", "qr", "emoji"]
+    value: str  # The actual flair content (icon name, image path, QR data, emoji)
+    size: int | None  # Optional size modifier
+
+
+class TaskMetadata(TypedDict, total=False):
+    """Structured metadata for tasks."""
+    priority: Literal["low", "medium", "high"] | str
+    assignee: str
+    assigned: str  # Date/time assigned 
+    due: str  # Due date/time
+    tags: list[str]
+    notes: str
 
 
 # Type definitions for better annotation specificity
@@ -65,44 +91,48 @@ class HealthStatus(TypedDict, total=False):
     reason: str
 
 
-class TaskData(TypedDict, total=False):
-    text: str
-    flair_type: str
-    flair_value: str | None
-    metadata: dict[str, Any] | None
+class Task(TypedDict, total=False):
+    """Unified task representation for both API input and worker processing."""
+    # Core task data
+    text: str  # Task text content
+    task: str  # Alias for text (for worker compatibility)
+    
+    # Category/grouping (optional for input, required for worker)
+    category: str
+    
+    # Flair - supports both input formats
+    flair_type: Literal["none", "icon", "image", "qr", "emoji"]  # API input format
+    flair_value: str | None  # API input format
+    flair: FlairData | None  # Worker format (structured)
+    
+    # Metadata - supports both formats
+    metadata: TaskMetadata | None  # API input format
+    meta: TaskMetadata | None  # Worker format (alias)
 
 
 class SectionData(TypedDict):
     category: str
-    tasks: list[TaskData]
+    tasks: list[Task]
 
 
-class WorkerTask(TypedDict, total=False):
-    category: str
-    task: str
-    flair: dict[str, Any] | None
-    meta: dict[str, Any] | None
-
-
-def register_tools(server: FastMCP, flask_app: "Flask | None" = None) -> None:
+def register_tools(server: FastMCP) -> None:
     """
     Register all MCP tools with the server.
     
     Args:
         server: FastMCP server instance to register tools with.
-        flask_app: Optional Flask application for context.
     """
     # Job Management Tools
-    _register_job_tools(server, flask_app)
+    _register_job_tools(server)
     
     # Template Management Tools  
-    _register_template_tools(server, flask_app)
+    _register_template_tools(server)
     
     # System Management Tools
-    _register_system_tools(server, flask_app)
+    _register_system_tools(server)
 
 
-def _register_job_tools(server: FastMCP, flask_app: "Flask | None") -> None:
+def _register_job_tools(server: FastMCP) -> None:
     """Register job management tools."""
     
     @server.tool(
@@ -118,12 +148,22 @@ def _register_job_tools(server: FastMCP, flask_app: "Flask | None") -> None:
     )
     def submit_job(
         sections: Annotated[
-            list[SectionData],
-            "List of sections, each containing category (str) and tasks (list of dicts). Each task needs: text (str), flair_type (str: 'none'|'icon'|'image'|'qr'|'emoji'), flair_value (str, optional), metadata (dict, optional)"
-        ],
+        list[SectionData],
+        Field(
+            description="List of sections, each containing a category (str) and tasks (list). "
+            "Each task should have: text (str), flair_type ('none'|'icon'|'image'|'qr'|'emoji'), "
+            "optional flair_value (str), and optional metadata with priority, assignee, due date, etc.",
+            min_length=1,
+            max_length=50
+        )
+    ],
         options: Annotated[
             dict[str, Any] | None,
-            "Optional print options. Can include tear_delay_seconds (float) for delay between tasks during manual tear"
+            Field(
+                description="Optional print options. Currently supports: "
+                "tear_delay_seconds (float, 0-60) for delay between tasks during manual tear",
+                default=None
+            )
         ] = None
     ) -> JobResult:
         """
@@ -132,11 +172,11 @@ def _register_job_tools(server: FastMCP, flask_app: "Flask | None") -> None:
         Args:
             sections: List of sections, each containing:
                 - category (str): Section category/title
-                - tasks (List[Dict]): List of tasks, each with:
+                - tasks (List[Task]): List of tasks, each with:
                   - text (str): Task text
                   - flair_type (str): "none", "icon", "image", "qr", "emoji"
                   - flair_value (str, optional): Value for flair
-                  - metadata (Dict, optional): Task metadata
+                  - metadata (TaskMetadata, optional): Structured task metadata
             options: Optional print options:
                 - tear_delay_seconds (float): Delay between tasks for manual tear
         
@@ -197,8 +237,7 @@ def _register_job_tools(server: FastMCP, flask_app: "Flask | None") -> None:
         except ToolError:
             raise  # Re-raise ToolError as-is
         except Exception as e:
-            if flask_app:
-                flask_app.logger.error(f"MCP submit_job failed: {e}")
+            logger.error(f"MCP submit_job failed: {e}")
             raise ToolError(f"Failed to submit job: {str(e)}")
     
     @server.tool(
@@ -211,7 +250,10 @@ def _register_job_tools(server: FastMCP, flask_app: "Flask | None") -> None:
         }
     )
     def get_job_status(
-        job_id: Annotated[str, "The unique ID of the print job to check status for"]
+        job_id: Annotated[
+            str, 
+            Field(description="The unique ID of the print job to check status for", min_length=1)
+        ]
     ) -> JobStatus: 
         """
         Get the status of a print job.
@@ -255,12 +297,11 @@ def _register_job_tools(server: FastMCP, flask_app: "Flask | None") -> None:
         except ToolError:
             raise  # Re-raise ToolError as-is
         except Exception as e:
-            if flask_app:
-                flask_app.logger.error(f"MCP get_job_status failed: {e}")
+            logger.error(f"MCP get_job_status failed: {e}")
             raise ToolError(f"Failed to get job status: {str(e)}")
 
 
-def _register_template_tools(server: FastMCP, flask_app: "Flask | None") -> None:
+def _register_template_tools(server: FastMCP) -> None:
     """Register template management tools."""
     
     @server.tool(
@@ -284,8 +325,7 @@ def _register_template_tools(server: FastMCP, flask_app: "Flask | None") -> None
             templates = dbh.list_templates()
             return templates
         except Exception as e:
-            if flask_app:
-                flask_app.logger.error(f"MCP list_templates failed: {e}")
+            logger.error(f"MCP list_templates failed: {e}")
             raise ToolError(f"Failed to list templates: {str(e)}")
     
     @server.tool(
@@ -298,7 +338,10 @@ def _register_template_tools(server: FastMCP, flask_app: "Flask | None") -> None
         }
     )
     def get_template(
-        template_id: Annotated[int, "The unique ID of the template to retrieve"]
+        template_id: Annotated[
+            int, 
+            Field(description="The unique ID of the template to retrieve", ge=1)
+        ]
     ) -> dict[str, Any]:
         """
         Get a specific template by ID.
@@ -318,8 +361,7 @@ def _register_template_tools(server: FastMCP, flask_app: "Flask | None") -> None
         except ToolError:
             raise  # Re-raise ToolError as-is
         except Exception as e:
-            if flask_app:
-                flask_app.logger.error(f"MCP get_template failed: {e}")
+            logger.error(f"MCP get_template failed: {e}")
             raise ToolError(f"Failed to get template: {str(e)}")
     
     @server.tool(
@@ -334,18 +376,33 @@ def _register_template_tools(server: FastMCP, flask_app: "Flask | None") -> None
         }
     )
     def create_template(
-        name: Annotated[str, "Name for the new template"],
+        name: Annotated[
+            str, 
+            Field(description="Name for the new template", min_length=1, max_length=100)
+        ],
         sections: Annotated[
             list[SectionData],
-            "Template sections structure. Same format as submit_job: list of sections with category and tasks"
+            Field(
+                description="Template sections structure. Same format as submit_job: list of sections "
+                "with category and tasks. Each task supports structured flair and metadata.",
+                min_length=1,
+                max_length=50
+            )
         ],
         options: Annotated[
             dict[str, Any] | None,
-            "Optional template options (reserved for future use)"
+            Field(
+                description="Optional template options (reserved for future use)", 
+                default=None
+            )
         ] = None,
         notes: Annotated[
             str | None,
-            Field(description="Optional notes about the template", max_length=500)
+            Field(
+                description="Optional notes about the template (max 500 characters)",
+                max_length=500,
+                default=None
+            )
         ] = None
     ) -> TemplateResult: 
         """
@@ -387,8 +444,7 @@ def _register_template_tools(server: FastMCP, flask_app: "Flask | None") -> None
         except ToolError:
             raise  # Re-raise ToolError as-is
         except Exception as e:
-            if flask_app:
-                flask_app.logger.error(f"MCP create_template failed: {e}")
+            logger.error(f"MCP create_template failed: {e}")
             raise ToolError(f"Failed to create template: {str(e)}")
     
     @server.tool(
@@ -403,10 +459,18 @@ def _register_template_tools(server: FastMCP, flask_app: "Flask | None") -> None
         }
     )
     def print_template(
-        template_id: Annotated[int, "ID of the template to print"],
+        template_id: Annotated[
+            int, 
+            Field(description="ID of the template to print", ge=1)
+        ],
         tear_delay_seconds: Annotated[
             float | None,
-            Field(description="Optional override for tear-off delay in seconds", ge=0.0, le=60.0)
+            Field(
+                description="Optional override for tear-off delay in seconds (0-60)", 
+                ge=0.0, 
+                le=60.0,
+                default=None
+            )
         ] = None
     ) -> PrintTemplateResult: 
         """
@@ -472,12 +536,11 @@ def _register_template_tools(server: FastMCP, flask_app: "Flask | None") -> None
         except ToolError:
             raise  # Re-raise ToolError as-is
         except Exception as e:
-            if flask_app:
-                flask_app.logger.error(f"MCP print_template failed: {e}")
+            logger.error(f"MCP print_template failed: {e}")
             raise ToolError(f"Failed to print template: {str(e)}")
 
 
-def _register_system_tools(server: FastMCP, flask_app: "Flask | None") -> None:
+def _register_system_tools(server: FastMCP) -> None:
     """Register system management tools."""
     
     @server.tool(
@@ -520,8 +583,7 @@ def _register_system_tools(server: FastMCP, flask_app: "Flask | None") -> None:
                 
             return health_status
         except Exception as e:
-            if flask_app:
-                flask_app.logger.error(f"MCP get_health_status failed: {e}")
+            logger.error(f"MCP get_health_status failed: {e}")
             raise ToolError(f"Failed to get health status: {str(e)}")
     
     @server.tool(
@@ -575,8 +637,7 @@ def _register_system_tools(server: FastMCP, flask_app: "Flask | None") -> None:
         except ToolError:
             raise  # Re-raise ToolError as-is
         except Exception as e:
-            if flask_app:
-                flask_app.logger.error(f"MCP test_print failed: {e}")
+            logger.error(f"MCP test_print failed: {e}")
             raise ToolError(f"Failed to submit test print: {str(e)}")
 
 
@@ -597,7 +658,7 @@ def _get_env_limits() -> dict[str, int]:
     }
 
 
-def _convert_to_worker_format(req: Any) -> list[WorkerTask]:
+def _convert_to_worker_format(req: Any) -> list[Task]:
     """Convert validated request to worker format."""
     subtitle_tasks = []
     
@@ -629,7 +690,7 @@ def _convert_to_worker_format(req: Any) -> list[WorkerTask]:
             
             subtitle_tasks.append({
                 "category": category,
-                "task": text,
+                "task": text,  # Worker format uses 'task' field
                 "flair": flair,
                 "meta": meta
             })
@@ -671,7 +732,7 @@ def _convert_template_to_db_format(sections: list[SectionData]) -> list[dict[str
     return db_sections
 
 
-def _template_to_print_payload(template: dict[str, Any]) -> list[WorkerTask]:
+def _template_to_print_payload(template: dict[str, Any]) -> list[Task]:
     """Convert template to print worker payload format."""
     payload = []
     
@@ -714,7 +775,7 @@ def _template_to_print_payload(template: dict[str, Any]) -> list[WorkerTask]:
             
             payload.append({
                 "category": category,
-                "task": text,
+                "task": text,  # Worker format uses 'task' field
                 "flair": flair,
                 "meta": meta
             })

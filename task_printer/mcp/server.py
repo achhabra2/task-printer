@@ -9,10 +9,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from flask import Flask
 
 try:
     from fastmcp import FastMCP
@@ -32,13 +28,13 @@ from .prompts import register_prompts
 from .auth import SimpleJWTAuth
 
 
-def create_mcp_server(flask_app = None):
+# Module logger
+logger = logging.getLogger(__name__)
+
+
+def create_mcp_server():
     """
     Create and configure MCP server with task-printer capabilities.
-    
-    Args:
-        flask_app: Optional Flask application instance for accessing
-                  configuration and logging context.
     
     Returns:
         Configured FastMCP server instance.
@@ -54,48 +50,33 @@ def create_mcp_server(flask_app = None):
     auth_provider = None
     if os.environ.get("TASKPRINTER_AUTH_ENABLED", "true").lower() == "true":
         try:
-            auth_provider = create_auth_provider(flask_app)
-            if flask_app:
-                flask_app.logger.info("JWT authentication enabled for MCP server")
-            else:
-                logging.info("JWT authentication enabled for MCP server")
+            auth_provider = create_auth_provider()
+            logger.info("JWT authentication enabled for MCP server")
         except Exception as e:
-            if flask_app:
-                flask_app.logger.warning(f"Failed to setup authentication: {e}")
-            else:
-                logging.warning(f"Failed to setup authentication: {e}")
+            logger.warning(f"Failed to setup authentication: {e}")
     
     # Create server instance with authentication
     server = FastMCP("TaskPrinter", auth=auth_provider)
     
     # Register components
     try:
-        register_tools(server, flask_app)
-        register_resources(server, flask_app)
-        register_prompts(server, flask_app)
+        register_tools(server)
+        register_resources(server)
+        register_prompts(server)
         
         auth_status = "with JWT authentication" if auth_provider else "without authentication"
-        if flask_app:
-            flask_app.logger.info(f"MCP server created successfully {auth_status} - all components registered")
-        else:
-            logging.info(f"MCP server created successfully {auth_status} - all components registered")
+        logger.info(f"MCP server created successfully {auth_status} - all components registered")
             
     except Exception as e:
-        if flask_app:
-            flask_app.logger.error(f"Failed to register MCP components: {e}")
-        else:
-            logging.error(f"Failed to register MCP components: {e}")
+        logger.error(f"Failed to register MCP components: {e}")
         raise
     
     return server
 
 
-def create_auth_provider(flask_app=None):
+def create_auth_provider():
     """
     Create JWT authentication provider for the MCP server.
-    
-    Args:
-        flask_app: Optional Flask application instance for logging context.
         
     Returns:
         Custom JWT authentication provider instance.
@@ -162,10 +143,6 @@ def create_auth_provider(flask_app=None):
             return None
     
     provider = TaskPrinterJWTAuth(auth_system)
-    
-    if flask_app:
-        flask_app.logger.info("Custom JWT authentication provider created successfully")
-    else:
-        logging.info("Custom JWT authentication provider created successfully")
+    logger.info("Custom JWT authentication provider created successfully")
     
     return provider

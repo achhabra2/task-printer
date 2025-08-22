@@ -2,18 +2,8 @@
 """
 Standalone MCP server for Task Printer.
 
-This script runs a standalone Model Context Protocol server that exposes
-Task Printer functionality to AI assistants and other MCP clients.
-
-Usage:
-    python mcp_server.py [--host localhost] [--port 8000]
-    
-Environment Variables:
-    TASKPRINTER_MCP_HOST: Host to bind to (default: localhost)
-    TASKPRINTER_MCP_PORT: Port to bind to (default: 8000)
-    TASKPRINTER_MCP_ENABLED: Enable MCP server (default: true)
-    TASKPRINTER_AUTH_ENABLED: Enable JWT authentication (default: true)
-    TASKPRINTER_JWT_SECRET: JWT signing secret (auto-generated if not set)
+This is a completely independent MCP server that doesn't depend on Flask.
+It directly imports and uses the core task-printer functionality.
 """
 
 import argparse
@@ -23,24 +13,94 @@ import os
 import sys
 from pathlib import Path
 
-# Add the project root to Python path so we can import task_printer
+# Add the project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
-    from task_printer import create_app
-    from task_printer.mcp import create_mcp_server_if_available, MCP_AVAILABLE
-except ImportError as e:
-    print(f"Failed to import task_printer modules: {e}")
-    print("Make sure you're running from the project root and dependencies are installed.")
-    sys.exit(1)
+    from fastmcp import FastMCP
+    from fastmcp.server.auth import AuthProvider, AccessToken
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+    FastMCP = None
+
+# Import our core functionality directly (no Flask needed)
+from task_printer.core.logging import configure_logging
+from task_printer.mcp.auth import SimpleJWTAuth
+
+
+def create_standalone_mcp_server():
+    """Create a standalone MCP server without Flask dependency."""
+    if not MCP_AVAILABLE:
+        raise ImportError("FastMCP is not available. Install with: pip install fastmcp")
+    
+    # Setup authentication if enabled
+    auth_provider = None
+    if os.environ.get("TASKPRINTER_AUTH_ENABLED", "true").lower() == "true":
+        try:
+            auth_provider = create_auth_provider()
+            logging.info("JWT authentication enabled for MCP server")
+        except Exception as e:
+            logging.warning(f"Failed to setup authentication: {e}")
+    
+    # Create server instance
+    server = FastMCP("TaskPrinter", auth=auth_provider)
+    
+    # Register components - no longer need flask_app parameter
+    from task_printer.mcp.tools import register_tools
+    from task_printer.mcp.resources import register_resources  
+    from task_printer.mcp.prompts import register_prompts
+    
+    register_tools(server)
+    register_resources(server)
+    register_prompts(server)
+    
+    auth_status = "with JWT authentication" if auth_provider else "without authentication"
+    logging.info(f"MCP server created successfully {auth_status} - all components registered")
+    
+    return server
+
+
+def create_auth_provider():
+    """Create JWT authentication provider for the MCP server."""
+    auth_system = SimpleJWTAuth()
+    
+    class TaskPrinterJWTAuth(AuthProvider):
+        """Custom JWT authentication provider for TaskPrinter MCP server."""
+        
+        def __init__(self, auth_system: SimpleJWTAuth):
+            self.auth_system = auth_system
+            super().__init__()
+        
+        async def verify_token(self, token: str):
+            """Verify JWT token and return AccessToken object."""
+            claims = self.auth_system.verify_token(token)
+            if not claims:
+                raise ValueError("Invalid or expired JWT token")
+            
+            return AccessToken(
+                token=token,
+                client_id=claims.get("sub", "unknown"),
+                scopes=[],
+                expires_at=claims.get("exp"),
+                resource=None,
+                claims=claims
+            )
+        
+        def get_routes(self) -> list:
+            return []
+        
+        def get_resource_metadata_url(self) -> str | None:
+            return None
+    
+    return TaskPrinterJWTAuth(auth_system)
 
 
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Task Printer MCP Server",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        description="Standalone Task Printer MCP Server",
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
     parser.add_argument(
@@ -57,6 +117,13 @@ def parse_args():
     )
     
     parser.add_argument(
+        "--transport",
+        choices=["stdio", "http", "sse"],
+        default=os.environ.get("TASKPRINTER_MCP_TRANSPORT", "http"),
+        help="Transport protocol (default: http)"
+    )
+    
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug logging"
@@ -65,21 +132,14 @@ def parse_args():
     return parser.parse_args()
 
 
-def setup_logging(debug: bool = False):
-    """Configure logging for the MCP server."""
-    level = logging.DEBUG if debug else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="[%(asctime)s] %(levelname)s %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    )
-
-
 async def main():
-    """Main entry point for the MCP server."""
+    """Main entry point for the standalone MCP server."""
     args = parse_args()
-    setup_logging(args.debug)
     
+    # Configure logging using our existing system
+    configure_logging()
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
     logger = logging.getLogger(__name__)
     
     # Check if MCP is enabled
@@ -92,49 +152,36 @@ async def main():
         logger.error("FastMCP is not available. Install with: pip install fastmcp")
         sys.exit(1)
     
-    server = None
     try:
-        # Create Flask app for context (without starting the web server)
-        logger.info("Creating Flask application context...")
-        app = create_app(register_worker=True)
+        logger.info("Creating standalone MCP server...")
+        server = create_standalone_mcp_server()
         
-        # Create MCP server
-        logger.info("Creating MCP server...")
-        server = create_mcp_server_if_available(app)
-        
-        if server is None:
-            logger.error("Failed to create MCP server")
-            sys.exit(1)
-        
-        logger.info(f"Starting MCP server on {args.host}:{args.port}")
-        
-        # Check authentication status
+        # Log startup info
         auth_enabled = os.environ.get("TASKPRINTER_AUTH_ENABLED", "true").lower() == "true"
         if auth_enabled:
             logger.info("🔒 JWT Authentication: ENABLED")
             logger.info("   Generate tokens with: python scripts/generate_token.py")
-            logger.info("   Use tokens with: Authorization: Bearer <token>")
         else:
-            logger.warning("🔓 JWT Authentication: DISABLED (set TASKPRINTER_AUTH_ENABLED=true to enable)")
+            logger.warning("🔓 JWT Authentication: DISABLED")
         
         logger.info("Available tools: submit_job, get_job_status, list_templates, get_template, create_template, print_template, get_health_status, test_print")
         logger.info("Available resources: config, health, templates, jobs/recent")
         logger.info("Available prompts: create_task_list, optimize_for_printing, template_from_description, print_job_assistant, troubleshooting_guide")
         
-        # Start the server using run_async() since we're in an async context
-        # According to FastMCP docs, run_async() should be used inside async functions
-        await server.run_async(transport="http", host=args.host, port=args.port)
+        # Start the server
+        if args.transport == "stdio":
+            logger.info("Starting MCP server with STDIO transport")
+            await server.run_async(transport="stdio")
+        else:
+            logger.info(f"Starting MCP server on {args.host}:{args.port} with {args.transport} transport")
+            await server.run_async(
+                transport=args.transport, 
+                host=args.host, 
+                port=args.port
+            )
         
     except KeyboardInterrupt:
         logger.info("Shutting down MCP server...")
-        if server:
-            try:
-                # Try to cleanup any server resources
-                logger.info("Cleaning up server resources...")
-                # Give a short timeout for cleanup
-                await asyncio.sleep(0.1)
-            except Exception as cleanup_error:
-                logger.warning(f"Error during cleanup: {cleanup_error}")
     except Exception as e:
         logger.error(f"Error running MCP server: {e}")
         if args.debug:
@@ -145,23 +192,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    try:
-        # Set up signal handling for graceful shutdown
-        import signal
-        
-        def signal_handler(signum, frame):
-            print(f"\nReceived signal {signum}, shutting down gracefully...")
-            raise KeyboardInterrupt()
-        
-        # Register signal handlers
-        signal.signal(signal.SIGINT, signal_handler)
-        signal.signal(signal.SIGTERM, signal_handler)
-        
-        # Run the server with a timeout to prevent hanging
-        asyncio.run(main())
-        
-    except KeyboardInterrupt:
-        print("\nShutdown requested by user")
-    except Exception as e:
-        print(f"Fatal error: {e}")
-        sys.exit(1)
+    asyncio.run(main())
