@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, List, Literal
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -62,7 +62,7 @@ class TaskMetadata(BaseModel):
         Field(description="Due date/time (YYYY-MM-DD format)", max_length=30, default=None)
     ] = None
     tags: Annotated[
-        list[str] | None,
+        List[str] | None,
         Field(description="List of tags", default=None)
     ] = None
     notes: Annotated[
@@ -112,7 +112,7 @@ class PrintOptions(BaseModel):
 class SectionData(BaseModel):
     """A section containing a category and list of tasks."""
     category: str = Field(description="Section category/title")
-    tasks: list[Task] = Field(description="List of tasks in this section")
+    tasks: List[Task] = Field(description="List of tasks in this section")
 
 
 # Type definitions for better annotation specificity
@@ -221,7 +221,7 @@ def _register_job_tools(server: FastMCP) -> None:
     )
     def submit_job(
         sections: Annotated[
-            list[SectionData],
+            List[SectionData],
             Field(
                 description="List of sections, each containing a category (str) and tasks (list). "
                 "Each task should have: text (str), flair_type ('none'|'icon'|'image'|'qr'|'emoji'), "
@@ -385,7 +385,7 @@ def _register_template_tools(server: FastMCP) -> None:
             "openWorldHint": False
         }
     )
-    def list_templates() -> list[TemplateMetadata]:
+    def list_templates() -> List[TemplateMetadata]:
         """
         List all available templates.
         
@@ -453,7 +453,7 @@ def _register_template_tools(server: FastMCP) -> None:
             Field(description="Name for the new template", min_length=1, max_length=100)
         ],
         sections: Annotated[
-            list[SectionData],
+            List[SectionData],
             Field(
                 description="Template sections structure. Same format as submit_job: list of sections "
                 "with category and tasks. Each task supports structured flair and metadata.",
@@ -730,7 +730,7 @@ def _get_env_limits() -> dict[str, int]:
     }
 
 
-def _convert_to_worker_format(req: Any) -> list[Task]:
+def _convert_to_worker_format(req: Any) -> List[Task]:
     """Convert validated request to worker format."""
     subtitle_tasks = []
     
@@ -770,7 +770,7 @@ def _convert_to_worker_format(req: Any) -> list[Task]:
     return subtitle_tasks
 
 
-def _convert_template_to_db_format(sections: list[SectionData]) -> list[dict[str, Any]]:
+def _convert_template_to_db_format(sections: List[SectionData]) -> List[dict[str, Any]]:
     """Convert template sections to database format."""
     db_sections = []
     
@@ -804,7 +804,7 @@ def _convert_template_to_db_format(sections: list[SectionData]) -> list[dict[str
     return db_sections
 
 
-def _template_to_print_payload(template: dict[str, Any]) -> list[Task]:
+def _template_to_print_payload(template: dict[str, Any]) -> List[Task]:
     """Convert template to print worker payload format."""
     payload = []
     
