@@ -8,26 +8,83 @@ for job submission, status checking, and template management.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated, Any, TypedDict, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from flask import Flask
 
-try:
-    from fastmcp import FastMCP
-    from fastmcp.exceptions import ToolError
-    from pydantic import Field
-    MCP_AVAILABLE = True
-except ImportError:
-    MCP_AVAILABLE = False
-    FastMCP = None
-    ToolError = Exception
-    
-    def Field(**kwargs):  # Fallback function
-        return None
+from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
+from pydantic import Field
 
 
-def register_tools(server, flask_app = None) -> None:
+# Type definitions for better annotation specificity
+class JobResult(TypedDict):
+    job_id: str
+    status: str
+    message: str
+
+
+class JobStatus(TypedDict, total=False):
+    id: str
+    type: str
+    status: str
+    created_at: str
+    updated_at: str
+    total: int
+    origin: str
+
+
+class TemplateMetadata(TypedDict, total=False):
+    id: int
+    name: str
+    created_at: str
+    updated_at: str
+    last_used: str | None
+    notes: str | None
+
+
+class TemplateResult(TypedDict):
+    template_id: int
+    name: str
+    message: str
+
+
+class PrintTemplateResult(TypedDict):
+    job_id: str
+    template_id: int
+    status: str
+    message: str
+
+
+class HealthStatus(TypedDict, total=False):
+    overall_status: str
+    config: dict[str, str]
+    worker: dict[str, str | int]
+    printer: dict[str, str]
+    reason: str
+
+
+class TaskData(TypedDict, total=False):
+    text: str
+    flair_type: str
+    flair_value: str | None
+    metadata: dict[str, Any] | None
+
+
+class SectionData(TypedDict):
+    category: str
+    tasks: list[TaskData]
+
+
+class WorkerTask(TypedDict, total=False):
+    category: str
+    task: str
+    flair: dict[str, Any] | None
+    meta: dict[str, Any] | None
+
+
+def register_tools(server: FastMCP, flask_app: "Flask | None" = None) -> None:
     """
     Register all MCP tools with the server.
     
@@ -35,9 +92,6 @@ def register_tools(server, flask_app = None) -> None:
         server: FastMCP server instance to register tools with.
         flask_app: Optional Flask application for context.
     """
-    if not MCP_AVAILABLE:
-        return
-    
     # Job Management Tools
     _register_job_tools(server, flask_app)
     
@@ -48,7 +102,7 @@ def register_tools(server, flask_app = None) -> None:
     _register_system_tools(server, flask_app)
 
 
-def _register_job_tools(server, flask_app) -> None:
+def _register_job_tools(server: FastMCP, flask_app: "Flask | None") -> None:
     """Register job management tools."""
     
     @server.tool(
@@ -64,14 +118,14 @@ def _register_job_tools(server, flask_app) -> None:
     )
     def submit_job(
         sections: Annotated[
-            list,
+            list[SectionData],
             "List of sections, each containing category (str) and tasks (list of dicts). Each task needs: text (str), flair_type (str: 'none'|'icon'|'image'|'qr'|'emoji'), flair_value (str, optional), metadata (dict, optional)"
         ],
         options: Annotated[
-            dict,
+            dict[str, Any] | None,
             "Optional print options. Can include tear_delay_seconds (float) for delay between tasks during manual tear"
         ] = None
-    ) -> dict:
+    ) -> JobResult:
         """
         Submit a print job to the Task Printer.
         
@@ -158,7 +212,7 @@ def _register_job_tools(server, flask_app) -> None:
     )
     def get_job_status(
         job_id: Annotated[str, "The unique ID of the print job to check status for"]
-    ) -> dict: 
+    ) -> JobStatus: 
         """
         Get the status of a print job.
         
@@ -206,7 +260,7 @@ def _register_job_tools(server, flask_app) -> None:
             raise ToolError(f"Failed to get job status: {str(e)}")
 
 
-def _register_template_tools(server, flask_app) -> None:
+def _register_template_tools(server: FastMCP, flask_app: "Flask | None") -> None:
     """Register template management tools."""
     
     @server.tool(
@@ -218,7 +272,7 @@ def _register_template_tools(server, flask_app) -> None:
             "openWorldHint": False
         }
     )
-    def list_templates() -> list:
+    def list_templates() -> list[TemplateMetadata]:
         """
         List all available templates.
         
@@ -245,7 +299,7 @@ def _register_template_tools(server, flask_app) -> None:
     )
     def get_template(
         template_id: Annotated[int, "The unique ID of the template to retrieve"]
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Get a specific template by ID.
         
@@ -282,18 +336,18 @@ def _register_template_tools(server, flask_app) -> None:
     def create_template(
         name: Annotated[str, "Name for the new template"],
         sections: Annotated[
-            list,
+            list[SectionData],
             "Template sections structure. Same format as submit_job: list of sections with category and tasks"
         ],
         options: Annotated[
-            dict,
+            dict[str, Any] | None,
             "Optional template options (reserved for future use)"
         ] = None,
         notes: Annotated[
-            str,
+            str | None,
             Field(description="Optional notes about the template", max_length=500)
         ] = None
-    ) -> dict: 
+    ) -> TemplateResult: 
         """
         Create a new template.
         
@@ -351,10 +405,10 @@ def _register_template_tools(server, flask_app) -> None:
     def print_template(
         template_id: Annotated[int, "ID of the template to print"],
         tear_delay_seconds: Annotated[
-            float,
+            float | None,
             Field(description="Optional override for tear-off delay in seconds", ge=0.0, le=60.0)
         ] = None
-    ) -> dict: 
+    ) -> PrintTemplateResult: 
         """
         Print from an existing template.
         
@@ -423,7 +477,7 @@ def _register_template_tools(server, flask_app) -> None:
             raise ToolError(f"Failed to print template: {str(e)}")
 
 
-def _register_system_tools(server, flask_app) -> None:
+def _register_system_tools(server: FastMCP, flask_app: "Flask | None") -> None:
     """Register system management tools."""
     
     @server.tool(
@@ -435,7 +489,7 @@ def _register_system_tools(server, flask_app) -> None:
             "openWorldHint": True
         }
     )
-    def get_health_status() -> dict:
+    def get_health_status() -> HealthStatus:
         """
         Get system health status.
         
@@ -481,7 +535,7 @@ def _register_system_tools(server, flask_app) -> None:
             "openWorldHint": True
         }
     )
-    def test_print() -> dict:
+    def test_print() -> JobResult:
         """
         Submit a test print job.
         
@@ -526,7 +580,7 @@ def _register_system_tools(server, flask_app) -> None:
             raise ToolError(f"Failed to submit test print: {str(e)}")
 
 
-def _get_env_limits():
+def _get_env_limits() -> dict[str, int]:
     """Get environment-driven limits for validation."""
     def _env_int(name: str, default: int) -> int:
         try:
@@ -543,7 +597,7 @@ def _get_env_limits():
     }
 
 
-def _convert_to_worker_format(req):
+def _convert_to_worker_format(req: Any) -> list[WorkerTask]:
     """Convert validated request to worker format."""
     subtitle_tasks = []
     
@@ -583,7 +637,7 @@ def _convert_to_worker_format(req):
     return subtitle_tasks
 
 
-def _convert_template_to_db_format(sections):
+def _convert_template_to_db_format(sections: list[SectionData]) -> list[dict[str, Any]]:
     """Convert template sections to database format."""
     db_sections = []
     
@@ -617,7 +671,7 @@ def _convert_template_to_db_format(sections):
     return db_sections
 
 
-def _template_to_print_payload(template: dict):
+def _template_to_print_payload(template: dict[str, Any]) -> list[WorkerTask]:
     """Convert template to print worker payload format."""
     payload = []
     
