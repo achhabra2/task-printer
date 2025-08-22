@@ -99,6 +99,7 @@ def create_app(
     config_overrides: Optional[dict] = None,
     blueprints: Optional[Sequence[tuple[str, str]]] = None,
     register_worker: bool = True,
+    enable_mcp: bool = False,
 ) -> Flask:
     """
     Application factory.
@@ -108,6 +109,7 @@ def create_app(
     - blueprints: optional list of (import_path, attribute) tuples to register
       If None, a sensible default set is attempted.
     - register_worker: if True, attempts to start the background worker if available
+    - enable_mcp: if True, creates and attaches an MCP server instance to the app
 
     Returns:
     - Flask app instance
@@ -182,6 +184,19 @@ def create_app(
                 app.logger.info("Background worker ensured")
         except Exception as e:
             app.logger.debug(f"Worker not started (optional): {e}")
+
+    # Optionally create MCP server
+    if enable_mcp:
+        try:
+            from .mcp import create_mcp_server_if_available
+            mcp_server = create_mcp_server_if_available(app)
+            if mcp_server:
+                app.mcp_server = mcp_server
+                app.logger.info("MCP server created and attached to app")
+            else:
+                app.logger.warning("MCP server creation failed or unavailable")
+        except Exception as e:
+            app.logger.debug(f"MCP server not available: {e}")
 
     # Allow runtime overrides
     if config_overrides:
