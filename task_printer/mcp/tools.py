@@ -15,104 +15,125 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 
 # Get logger for this module
 logger = logging.getLogger(__name__)
 
 
-# Type definitions for flair and metadata specificity
-class FlairData(TypedDict, total=False):
+# Pydantic models for better schema generation
+class FlairData(BaseModel):
     """Structured flair data for task decoration."""
     type: Literal["none", "icon", "image", "qr", "emoji"]
     value: str  # The actual flair content (icon name, image path, QR data, emoji)
-    size: int | None  # Optional size modifier
+    size: int | None = None  # Optional size modifier
 
 
-class TaskMetadata(TypedDict, total=False):
+class TaskMetadata(BaseModel):
     """Structured metadata for tasks."""
-    priority: Literal["low", "medium", "high"] | str
-    assignee: str
-    assigned: str  # Date/time assigned 
-    due: str  # Due date/time
-    tags: list[str]
-    notes: str
+    priority: Literal["low", "medium", "high"] | str | None = None
+    assignee: str | None = None
+    assigned: str | None = None  # Date/time assigned 
+    due: str | None = None  # Due date/time
+    tags: list[str] | None = None
+    notes: str | None = None
 
 
-# Type definitions for better annotation specificity
-class JobResult(TypedDict):
-    job_id: str
-    status: str
-    message: str
-
-
-class JobStatus(TypedDict, total=False):
-    id: str
-    type: str
-    status: str
-    created_at: str
-    updated_at: str
-    total: int
-    origin: str
-
-
-class TemplateMetadata(TypedDict, total=False):
-    id: int
-    name: str
-    created_at: str
-    updated_at: str
-    last_used: str | None
-    notes: str | None
-
-
-class TemplateResult(TypedDict):
-    template_id: int
-    name: str
-    message: str
-
-
-class PrintTemplateResult(TypedDict):
-    job_id: str
-    template_id: int
-    status: str
-    message: str
-
-
-class HealthStatus(TypedDict, total=False):
-    overall_status: str
-    config: dict[str, str]
-    worker: dict[str, str | int]
-    printer: dict[str, str]
-    reason: str
-
-
-class Task(TypedDict, total=False):
+class Task(BaseModel):
     """Unified task representation for both API input and worker processing."""
     # Core task data
     text: str  # Task text content
-    task: str  # Alias for text (for worker compatibility)
-    
-    # Category/grouping (optional for input, required for worker)
-    category: str
     
     # Flair - supports both input formats
-    flair_type: Literal["none", "icon", "image", "qr", "emoji"]  # API input format
-    flair_value: str | None  # API input format
-    flair: FlairData | None  # Worker format (structured)
+    flair_type: Literal["none", "icon", "image", "qr", "emoji"] = "none"  # API input format
+    flair_value: str | None = None  # API input format
     
     # Metadata - supports both formats
-    metadata: TaskMetadata | None  # API input format
-    meta: TaskMetadata | None  # Worker format (alias)
+    metadata: TaskMetadata | None = None  # API input format
 
 
-class SectionData(TypedDict):
-    category: str
-    tasks: list[Task]
+class SectionData(BaseModel):
+    """A section containing a category and list of tasks."""
+    category: str = Field(description="Section category/title")
+    tasks: list[Task] = Field(description="List of tasks in this section")
+
+
+# Type definitions for better annotation specificity
+class JobResult(BaseModel):
+    job_id: str
+    status: str
+    message: str
+
+
+class JobStatus(BaseModel):
+    id: str | None = None
+    type: str | None = None
+    status: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    total: int | None = None
+    origin: str | None = None
+
+
+class TemplateMetadata(BaseModel):
+    id: int | None = None
+    name: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    last_used: str | None = None
+    notes: str | None = None
+
+
+class TemplateResult(BaseModel):
+    template_id: int
+    name: str
+    message: str
+
+
+class PrintTemplateResult(BaseModel):
+    job_id: str
+    template_id: int
+    status: str
+    message: str
+
+
+class HealthStatus(BaseModel):
+    overall_status: str | None = None
+    config: dict[str, str] | None = None
+    worker: dict[str, str | int] | None = None
+    printer: dict[str, str] | None = None
+    reason: str | None = None
+
+
+# Legacy Task class for backwards compatibility - remove after updating
+# class Task(BaseModel):
+#     """Unified task representation for both API input and worker processing."""
+#     # Core task data
+#     text: str | None = None  # Task text content
+#     task: str | None = None  # Alias for text (for worker compatibility)
+#     
+#     # Category/grouping (optional for input, required for worker)
+#     category: str | None = None
+#     
+#     # Flair - supports both input formats
+#     flair_type: Literal["none", "icon", "image", "qr", "emoji"] | None = None  # API input format
+#     flair_value: str | None = None  # API input format
+#     flair: FlairData | None = None  # Worker format (structured)
+#     
+#     # Metadata - supports both formats
+#     metadata: TaskMetadata | None = None  # API input format
+#     meta: TaskMetadata | None = None  # Worker format (alias)
+
+
+# Legacy SectionData - remove this duplicate
+# class SectionData(BaseModel):
+#     category: str
+#     tasks: list[Task]
 
 
 def register_tools(server: FastMCP) -> None:
