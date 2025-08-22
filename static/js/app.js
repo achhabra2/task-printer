@@ -811,10 +811,16 @@
       } else if (el.classList.contains("flair-emoji-recent")) {
         const row = el.closest(".flair-row");
         const emojiInput = row ? row.querySelector(".flair-emoji") : null;
+        const flairTypeSelect = row ? row.querySelector(".tp-flair-type") : null;
         const val = el.value || "";
         if (emojiInput && val) {
           emojiInput.value = val;
           saveEmojiRecent(val);
+          // Automatically select "Emoji" from the flair dropdown
+          if (flairTypeSelect && flairTypeSelect.value !== "emoji") {
+            flairTypeSelect.value = "emoji";
+            onFlairTypeChange(flairTypeSelect);
+          }
         }
       }
     });
