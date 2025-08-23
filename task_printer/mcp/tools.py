@@ -68,6 +68,17 @@ class HealthStatus(BaseModel):
     printer: dict[str, str] | None = Field(default=None, description="Printer connectivity status")
     reason: str | None = Field(default=None, description="Reason for degraded status, if applicable")
 
+class SubmitJobRequest(BaseModel):
+    """Request model for submitting a print job."""
+    sections: List[Section]
+    options: Options | None
+
+
+class CreateTemplateRequest(BaseModel):
+    """Request model for creating a new print template."""
+    name: str = Field(description="Name of the template")
+    sections: List[TemplateSection] = Field(description="Sections to include in the template")
+    notes: str | None = Field(default=None, description="Optional notes about the template")
 
 def register_tools(server: FastMCP) -> None:
     """
@@ -83,7 +94,7 @@ def register_tools(server: FastMCP) -> None:
     _register_template_tools(server)
     
     # System Management Tools
-    # _register_system_tools(server)
+    _register_system_tools(server)
 
 
 def _register_job_tools(server: FastMCP) -> None:
@@ -91,8 +102,7 @@ def _register_job_tools(server: FastMCP) -> None:
     
     @server.tool()
     def submit_job(
-        sections: List[Section],
-        options: Options | None
+        request: SubmitJobRequest
     ) -> JobResult:
         """
         Submit a print job to the Task Printer.
@@ -111,9 +121,9 @@ def _register_job_tools(server: FastMCP) -> None:
                 raise ToolError("Service not configured. Complete setup first.")
             
             # Validate request using existing schema
-            payload = {"sections": sections}
-            if options:
-                payload["options"] = options
+            payload = {"sections": request.sections}
+            if request.options:
+                payload["options"] = request.options
                 
             # Get environment limits for validation context
             limits = _get_env_limits()
@@ -227,20 +237,7 @@ def _register_template_tools(server: FastMCP) -> None:
             raise ToolError(f"Failed to get template: {str(e)}")
     
     @server.tool()
-    def create_template(
-        name: str = Field(description="Name for the new template", min_length=1, max_length=100),
-        sections: List[TemplateSection] = Field(
-            description="Template sections structure. Same format as submit_job: list of sections "
-            "with category and tasks. Each task supports structured flair and metadata.",
-            min_length=1,
-            max_length=50
-        ),
-        notes: str | None = Field(
-            description="Optional notes about the template (max 500 characters)",
-            max_length=500,
-            default=None
-        )
-    ) -> TemplateResult: 
+    def create_template(request: CreateTemplateRequest) -> TemplateResult: 
         """
         Create a new template.
         """
@@ -249,9 +246,9 @@ def _register_template_tools(server: FastMCP) -> None:
             
             # Validate using existing schema
             limits = _get_env_limits()
-            payload = {"name": name, "sections": sections}
-            if notes:
-                payload["notes"] = notes
+            payload = {"name": request.name, "sections": request.sections}
+            if request.notes:
+                payload["notes"] = request.notes
                 
             req = TemplateCreateRequest.model_validate(payload, context={"limits": limits})
             
