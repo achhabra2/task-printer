@@ -3,163 +3,70 @@ MCP tools for Task Printer operations.
 
 This module implements MCP tools that expose task-printer functionality
 for job submission, status checking, and template management.
-
-Type Definitions:
-- FlairData: Structured flair information with specific types and optional sizing
-- TaskMetadata: Rich metadata for tasks including priority, assignee, dates, etc.
-- Task: Unified task representation for both API input and worker processing
-- SectionData: Collection of tasks grouped by category
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from typing import Annotated, Any, List, Literal
+from typing import Any, List
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from pydantic import BaseModel, Field
+
+# Import existing schemas to avoid duplication
+from task_printer.web.schemas import (
+    Task, Section, Options, JobSubmitRequest,
+    TemplateSection, TemplateCreateRequest, TemplateListItem
+)
 
 
 # Get logger for this module
 logger = logging.getLogger(__name__)
 
 
-# Pydantic models for better schema generation
-class FlairData(BaseModel):
-    """Structured flair data for task decoration."""
-    type: Annotated[
-        Literal["none", "icon", "image", "qr", "emoji"],
-        Field(description="Type of flair decoration")
-    ]
-    value: Annotated[
-        str,
-        Field(description="The actual flair content (icon name, image path, QR data, emoji)")
-    ]
-    size: Annotated[
-        int | None,
-        Field(description="Optional size modifier", ge=1, le=100, default=None)
-    ] = None
-
-
-class TaskMetadata(BaseModel):
-    """Structured metadata for tasks."""
-    priority: Annotated[
-        Literal["low", "medium", "high"] | str | None,
-        Field(description="Task priority level", default=None)
-    ] = None
-    assignee: Annotated[
-        str | None,
-        Field(description="Person assigned to the task", max_length=60, default=None)
-    ] = None
-    assigned: Annotated[
-        str | None,
-        Field(description="Date/time assigned (YYYY-MM-DD format)", max_length=30, default=None)
-    ] = None
-    due: Annotated[
-        str | None,
-        Field(description="Due date/time (YYYY-MM-DD format)", max_length=30, default=None)
-    ] = None
-    tags: Annotated[
-        List[str] | None,
-        Field(description="List of tags", default=None)
-    ] = None
-    notes: Annotated[
-        str | None,
-        Field(description="Additional notes", default=None)
-    ] = None
-
-
-class Task(BaseModel):
-    """Unified task representation for both API input and worker processing."""
-    # Core task data
-    text: Annotated[
-        str,
-        Field(description="Task text content", min_length=1, max_length=200)
-    ]
-    
-    # Flair - supports both input formats
-    flair_type: Annotated[
-        Literal["none", "icon", "image", "qr", "emoji"],
-        Field(description="Type of flair decoration", default="none")
-    ] = "none"
-    flair_value: Annotated[
-        str | None,
-        Field(description="Flair content (icon name, image path, QR data, emoji)", default=None)
-    ] = None
-    
-    # Metadata - supports both formats
-    metadata: Annotated[
-        TaskMetadata | None,
-        Field(description="Structured task metadata", default=None)
-    ] = None
-
-
-class PrintOptions(BaseModel):
-    """Print job options."""
-    tear_delay_seconds: Annotated[
-        float | None,
-        Field(
-            description="Delay between tasks during manual tear (0-60 seconds)",
-            ge=0.0,
-            le=60.0,
-            default=None
-        )
-    ] = None
-
-
-class SectionData(BaseModel):
-    """A section containing a category and list of tasks."""
-    category: str = Field(description="Section category/title")
-    tasks: List[Task] = Field(description="List of tasks in this section")
-
-
-# Type definitions for better annotation specificity
+# Only keep response models that are specific to MCP tools
 class JobResult(BaseModel):
-    job_id: str
-    status: str
-    message: str
+    """Result of submitting a print job via MCP."""
+    job_id: str = Field(description="Unique identifier for the submitted print job")
+    status: str = Field(description="Current job status", examples=["queued", "processing", "completed", "error"])
+    message: str = Field(description="Human-readable status message", examples=["Job submitted successfully", "Job completed", "Job failed: printer offline"])
 
 
 class JobStatus(BaseModel):
-    id: str | None = None
-    type: str | None = None
-    status: str | None = None
-    created_at: str | None = None
-    updated_at: str | None = None
-    total: int | None = None
-    origin: str | None = None
-
-
-class TemplateMetadata(BaseModel):
-    id: int | None = None
-    name: str | None = None
-    created_at: str | None = None
-    updated_at: str | None = None
-    last_used: str | None = None
-    notes: str | None = None
+    """Detailed status information for a print job."""
+    id: str | None = Field(default=None, description="Unique job identifier")
+    type: str | None = Field(default=None, description="Job type identifier")
+    status: str | None = Field(default=None, description="Current job status", examples=["queued", "running", "success", "error"])
+    created_at: str | None = Field(default=None, description="ISO timestamp when job was created")
+    updated_at: str | None = Field(default=None, description="ISO timestamp when job was last updated")
+    total: int | None = Field(default=None, description="Total number of tasks in the job", ge=0)
+    origin: str | None = Field(default=None, description="Source that created the job", examples=["web", "mcp", "api"])
 
 
 class TemplateResult(BaseModel):
-    template_id: int
-    name: str
-    message: str
+    """Result of creating a new template via MCP."""
+    template_id: int = Field(description="Unique identifier for the created template", ge=1)
+    name: str = Field(description="Name of the created template")
+    message: str = Field(description="Success message", examples=["Template created successfully"])
 
 
 class PrintTemplateResult(BaseModel):
-    job_id: str
-    template_id: int
-    status: str
-    message: str
+    """Result of submitting a template print job via MCP."""
+    job_id: str = Field(description="Unique identifier for the submitted print job")
+    template_id: int = Field(description="ID of the template that was printed", ge=1)
+    status: str = Field(description="Current job status", examples=["queued", "processing"])
+    message: str = Field(description="Success message", examples=["Template print job submitted successfully"])
 
 
 class HealthStatus(BaseModel):
-    overall_status: str | None = None
-    config: dict[str, str] | None = None
-    worker: dict[str, str | int] | None = None
-    printer: dict[str, str] | None = None
-    reason: str | None = None
+    """System health status information."""
+    overall_status: str | None = Field(default=None, description="Overall system health", examples=["healthy", "degraded", "unhealthy"])
+    config: dict[str, str] | None = Field(default=None, description="Configuration status information")
+    worker: dict[str, str | int] | None = Field(default=None, description="Background worker status and queue information")
+    printer: dict[str, str] | None = Field(default=None, description="Printer connectivity status")
+    reason: str | None = Field(default=None, description="Reason for degraded status, if applicable")
 
 
 def register_tools(server: FastMCP) -> None:
@@ -175,6 +82,8 @@ def register_tools(server: FastMCP) -> None:
     # Template Management Tools  
     _register_template_tools(server)
     
+    # System Management Tools
+    # _register_system_tools(server)
 
 
 def _register_job_tools(server: FastMCP) -> None:
@@ -182,47 +91,14 @@ def _register_job_tools(server: FastMCP) -> None:
     
     @server.tool()
     def submit_job(
-        sections: Annotated[
-            List[SectionData],
-            Field(
-                description="List of sections, each containing a category (str) and tasks (list). "
-                "Each task should have: text (str), flair_type ('none'|'icon'|'image'|'qr'|'emoji'), "
-                "optional flair_value (str), and optional metadata with priority, assignee, due date, etc.",
-                min_length=1,
-                max_length=50
-            )
-        ],
-        options: Annotated[
-            PrintOptions | None,
-            Field(
-                description="Optional print options including tear delay",
-                default=None
-            )
-        ] = None
+        sections: List[Section],
+        options: Options | None
     ) -> JobResult:
         """
         Submit a print job to the Task Printer.
-        
-        Args:
-            sections: List of sections, each containing:
-                - category (str): Section category/title
-                - tasks (List[Task]): List of tasks, each with:
-                  - text (str): Task text
-                  - flair_type (str): "none", "icon", "image", "qr", "emoji"
-                  - flair_value (str, optional): Value for flair
-                  - metadata (TaskMetadata, optional): Structured task metadata
-            options: Optional print options:
-                - tear_delay_seconds (float): Delay between tasks for manual tear
-        
-        Returns:
-            Dict containing job_id, status, and message.
-            
-        Raises:
-            ToolError: If job submission fails.
         """
         try:
             # Import here to avoid circular imports
-            from task_printer.web.schemas import JobSubmitRequest
             from task_printer.printing.worker import ensure_worker, enqueue_tasks
             from task_printer.core.config import load_config
             
@@ -237,7 +113,7 @@ def _register_job_tools(server: FastMCP) -> None:
             # Validate request using existing schema
             payload = {"sections": sections}
             if options:
-                payload["options"] = {"tear_delay_seconds": options.tear_delay_seconds} if options.tear_delay_seconds else None
+                payload["options"] = options
                 
             # Get environment limits for validation context
             limits = _get_env_limits()
@@ -273,56 +149,102 @@ def _register_job_tools(server: FastMCP) -> None:
         except Exception as e:
             logger.error(f"MCP submit_job failed: {e}")
             raise ToolError(f"Failed to submit job: {str(e)}")
+    
+    @server.tool()
+    def get_job_status(
+        job_id: str = Field(description="The unique ID of the print job to check status for", min_length=1)
+    ) -> JobStatus: 
+        """
+        Get the status of a print job.
+        """
+        try:
+            from task_printer.printing.worker import get_job
+            
+            # Try to get live job status first
+            job = get_job(job_id)
+            if job:
+                return job
+            
+            # Try to get from database if available
+            try:
+                from task_printer.core import db as dbh
+                db_job = dbh.get_job_db(job_id)
+                if db_job:
+                    return {
+                        "id": db_job.get("id"),
+                        "type": db_job.get("type"), 
+                        "status": db_job.get("status"),
+                        "created_at": db_job.get("created_at"),
+                        "updated_at": db_job.get("updated_at"),
+                        "total": db_job.get("total"),
+                        "origin": db_job.get("origin"),
+                    }
+            except Exception:
+                pass
+            
+            raise ToolError(f"Job {job_id} not found")
+            
+        except ToolError:
+            raise  # Re-raise ToolError as-is
+        except Exception as e:
+            logger.error(f"MCP get_job_status failed: {e}")
+            raise ToolError(f"Failed to get job status: {str(e)}")
 
 
 def _register_template_tools(server: FastMCP) -> None:
     """Register template management tools."""
     
     @server.tool()
+    def list_templates() -> List[TemplateListItem]:
+        """
+        List all available templates.
+        """
+        try:
+            from task_printer.core import db as dbh
+            templates = dbh.list_templates()
+            return templates
+        except Exception as e:
+            logger.error(f"MCP list_templates failed: {e}")
+            raise ToolError(f"Failed to list templates: {str(e)}")
+    
+    @server.tool()
+    def get_template(
+        template_id: int = Field(description="The unique ID of the template to retrieve", ge=1)
+    ) -> dict[str, Any]:
+        """
+        Get a specific template by ID.
+        """
+        try:
+            from task_printer.core import db as dbh
+            template = dbh.get_template(template_id)
+            if not template:
+                raise ToolError(f"Template {template_id} not found")
+            return template
+        except ToolError:
+            raise  # Re-raise ToolError as-is
+        except Exception as e:
+            logger.error(f"MCP get_template failed: {e}")
+            raise ToolError(f"Failed to get template: {str(e)}")
+    
+    @server.tool()
     def create_template(
-        name: Annotated[
-            str, 
-            Field(description="Name for the new template", min_length=1, max_length=100)
-        ],
-        sections: Annotated[
-            List[SectionData],
-            Field(
-                description="Template sections structure. Same format as submit_job: list of sections "
-                "with category and tasks. Each task supports structured flair and metadata.",
-                min_length=1,
-                max_length=50
-            )
-        ],
-        options: Annotated[
-            PrintOptions | None,
-            Field(
-                description="Optional template options (reserved for future use)", 
-                default=None
-            )
-        ] = None,
-        notes: Annotated[
-            str | None,
-            Field(
-                description="Optional notes about the template (max 500 characters)",
-                max_length=500,
-                default=None
-            )
-        ] = None
+        name: str = Field(description="Name for the new template", min_length=1, max_length=100),
+        sections: List[TemplateSection] = Field(
+            description="Template sections structure. Same format as submit_job: list of sections "
+            "with category and tasks. Each task supports structured flair and metadata.",
+            min_length=1,
+            max_length=50
+        ),
+        notes: str | None = Field(
+            description="Optional notes about the template (max 500 characters)",
+            max_length=500,
+            default=None
+        )
     ) -> TemplateResult: 
         """
         Create a new template.
-        
-        Args:
-            name: Template name.
-            sections: Template sections structure.
-            options: Optional template options.
-            notes: Optional notes about the template.
-            
-        Returns:
-            Dict with template ID and confirmation.
         """
         try:
-            from task_printer.web.schemas import TemplateCreateRequest
             from task_printer.core import db as dbh
             
             # Validate using existing schema
@@ -353,19 +275,13 @@ def _register_template_tools(server: FastMCP) -> None:
     
     @server.tool()
     def print_template(
-        template_id: Annotated[
-            int, 
-            Field(description="ID of the template to print", ge=1)
-        ],
-        tear_delay_seconds: Annotated[
-            float | None,
-            Field(
-                description="Optional override for tear-off delay in seconds (0-60)", 
-                ge=0.0, 
-                le=60.0,
-                default=None
-            )
-        ] = None
+        template_id: int = Field(description="ID of the template to print", ge=1),
+        tear_delay_seconds: float | None = Field(
+            description="Optional override for tear-off delay in seconds (0-60)", 
+            ge=0.0, 
+            le=60.0,
+            default=None
+        )
     ) -> PrintTemplateResult: 
         """
         Print from an existing template.
@@ -433,6 +349,87 @@ def _register_template_tools(server: FastMCP) -> None:
             logger.error(f"MCP print_template failed: {e}")
             raise ToolError(f"Failed to print template: {str(e)}")
 
+
+def _register_system_tools(server: FastMCP) -> None:
+    """Register system management tools."""
+    
+    @server.tool()
+    def get_health_status() -> HealthStatus:
+        """
+        Get system health status.
+        
+        Returns:
+            Dict containing health information for various components.
+        """
+        try:
+            from task_printer.web.health import healthz
+            result, status_code = healthz()
+            
+            # Transform the Flask response into MCP format
+            health_status = {
+                "overall_status": "healthy" if result.get("status") == "ok" else "degraded",
+                "config": {
+                    "status": "configured" if result.get("status") != "degraded" or result.get("reason") != "no_config" else "not_configured"
+                },
+                "worker": {
+                    "status": "running" if result.get("worker_running", False) else "stopped",
+                    "queue_size": result.get("queue_size", 0)
+                },
+                "printer": {
+                    "status": "connected" if result.get("printer_ok", False) else "disconnected"
+                }
+            }
+            
+            if result.get("reason"):
+                health_status["reason"] = result["reason"]
+                
+            return health_status
+        except Exception as e:
+            logger.error(f"MCP get_health_status failed: {e}")
+            raise ToolError(f"Failed to get health status: {str(e)}")
+    
+    @server.tool()
+    def test_print() -> JobResult:
+        """
+        Submit a test print job.
+        """
+        try:
+            from task_printer.printing.worker import ensure_worker, enqueue_tasks
+            from task_printer.core.config import load_config
+            
+            # Validate configuration
+            try:
+                cfg = load_config()
+            except Exception:
+                cfg = None
+            if not cfg:
+                raise ToolError("Service not configured. Complete setup first.")
+            
+            # Create test payload
+            test_payload = [{
+                "category": "MCP Test Print",
+                "task": "This is a test print from the MCP server",
+                "flair": None,
+                "meta": None
+            }]
+            
+            # Submit job
+            ensure_worker()
+            job_id = enqueue_tasks(test_payload)
+            
+            return {
+                "job_id": str(job_id),
+                "status": "queued",
+                "message": "Test print job submitted successfully"
+            }
+            
+        except ToolError:
+            raise  # Re-raise ToolError as-is
+        except Exception as e:
+            logger.error(f"MCP test_print failed: {e}")
+            raise ToolError(f"Failed to submit test print: {str(e)}")
+
+
 def _get_env_limits() -> dict[str, int]:
     """Get environment-driven limits for validation."""
     def _env_int(name: str, default: int) -> int:
@@ -490,7 +487,7 @@ def _convert_to_worker_format(req: Any) -> List[Task]:
     return subtitle_tasks
 
 
-def _convert_template_to_db_format(sections: List[SectionData]) -> List[dict[str, Any]]:
+def _convert_template_to_db_format(sections: List[TemplateSection]) -> List[dict[str, Any]]:
     """Convert template sections to database format."""
     db_sections = []
     

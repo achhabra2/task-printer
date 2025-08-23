@@ -40,10 +40,31 @@ def _valid_date_str(s: str) -> bool:
 
 
 class Metadata(BaseModel):
-    assigned: Optional[str] = Field(default=None)
-    due: Optional[str] = Field(default=None)
-    priority: Optional[str] = Field(default=None)
-    assignee: Optional[str] = Field(default=None)
+    """Task metadata for additional context and organization."""
+    assigned: Optional[str] = Field(
+        default=None,
+        description="Date/time assigned in YYYY-MM-DD, MM-DD, or MM/DD format",
+        max_length=30,
+        examples=["2024-12-25", "12-25", "12/25"]
+    )
+    due: Optional[str] = Field(
+        default=None,
+        description="Due date/time in YYYY-MM-DD, MM-DD, or MM/DD format",
+        max_length=30,
+        examples=["2024-12-31", "12-31", "12/31"]
+    )
+    priority: Optional[str] = Field(
+        default=None,
+        description="Task priority level (e.g., 'high', 'medium', 'low')",
+        max_length=20,
+        examples=["high", "medium", "low"]
+    )
+    assignee: Optional[str] = Field(
+        default=None,
+        description="Person assigned to complete this task",
+        max_length=60,
+        examples=["John Smith", "Team Lead", "jane@company.com"]
+    )
 
     @field_validator("assigned", "due")
     @classmethod
@@ -80,10 +101,25 @@ class Metadata(BaseModel):
 
 
 class Task(BaseModel):
-    text: str
-    flair_type: str = Field(default="none")  # none|icon|image|qr|emoji
-    flair_value: Optional[str] = Field(default=None)
-    metadata: Optional[Metadata] = Field(default=None)
+    """A single task item with optional flair decoration and metadata."""
+    text: str = Field(
+        description="The task description or action to be performed. Empty text is allowed but will be filtered out during processing.",
+        examples=["Buy groceries", "Call dentist", "Review quarterly reports", ""]
+    )
+    flair_type: str = Field(
+        default="none",
+        description="Type of visual decoration for the task. Options: 'none' (no decoration), 'icon' (predefined icon), 'image' (custom image), 'qr' (QR code), 'emoji' (Unicode emoji)",
+        examples=["none", "icon", "emoji", "qr", "image"]
+    )
+    flair_value: Optional[str] = Field(
+        default=None,
+        description="Content for the flair decoration. Required when flair_type is not 'none'. For 'icon': icon name, 'emoji': Unicode emoji, 'qr': text to encode, 'image': image path/URL",
+        examples=["📝", "shopping_cart", "https://example.com", "/path/to/image.png"]
+    )
+    metadata: Optional[Metadata] = Field(
+        default=None,
+        description="Additional task metadata like priority, assignee, and dates"
+    )
 
     @field_validator("text")
     @classmethod
@@ -139,8 +175,17 @@ class Task(BaseModel):
 
 
 class Section(BaseModel):
-    category: str
-    tasks: List[Task]
+    """A group of related tasks organized under a category header."""
+    category: str = Field(
+        description="Section title or category name that groups related tasks",
+        min_length=1,
+        examples=["Morning Routine", "Work Tasks", "Errands", "Shopping List"]
+    )
+    tasks: List[Task] = Field(
+        description="List of tasks belonging to this section",
+        min_length=1,
+        examples=[[{"text": "Brush teeth", "flair_type": "emoji", "flair_value": "🦷"}]]
+    )
 
     @field_validator("category")
     @classmethod
@@ -169,7 +214,12 @@ class Section(BaseModel):
 
 
 class Options(BaseModel):
-    tear_delay_seconds: Optional[float] = Field(default=None)
+    """Print job configuration options."""
+    tear_delay_seconds: Optional[float] = Field(
+        default=None,
+        description="Delay in seconds between tasks when using manual tear-off mode (0-60 seconds). Set to 0 for no delay, negative values are ignored, values > 60 are clamped to 60, or omit to use system default",
+        examples=[0, 2.5, 5.0, 10.0]
+    )
 
     @field_validator("tear_delay_seconds")
     @classmethod
@@ -188,8 +238,16 @@ class Options(BaseModel):
 
 
 class JobSubmitRequest(BaseModel):
-    sections: List[Section]
-    options: Optional[Options] = Field(default=None)
+    """Request to submit a new print job with sections of tasks."""
+    sections: List[Section] = Field(
+        description="List of task sections to print. Each section groups related tasks under a category",
+        min_length=1,
+        examples=[[{"category": "Morning Tasks", "tasks": [{"text": "Make coffee", "flair_type": "emoji", "flair_value": "☕"}]}]]
+    )
+    options: Optional[Options] = Field(
+        default=None,
+        description="Optional print job configuration settings"
+    )
 
     @field_validator("sections")
     @classmethod
@@ -204,22 +262,35 @@ class JobSubmitRequest(BaseModel):
 
 
 class Links(BaseModel):
-    self: str
-    job: str
+    """Hypermedia links for API navigation."""
+    self: str = Field(description="Link to this resource")
+    job: str = Field(description="Link to the job status endpoint")
 
 
 class JobAcceptedResponse(BaseModel):
-    id: str
-    status: str
-    links: Links
+    """Response when a print job is successfully accepted."""
+    id: str = Field(description="Unique identifier for the submitted job")
+    status: str = Field(description="Current job status", examples=["queued", "processing", "completed"])
+    links: Links = Field(description="Related resource links")
 
 
 # ----- Templates API Schemas -------------------------------------------------
 
 
 class TemplateTaskMeta(BaseModel):
-    priority: Optional[str] = None
-    assignee: Optional[str] = None
+    """Metadata for template tasks with simplified structure."""
+    priority: Optional[str] = Field(
+        default=None,
+        description="Task priority level (e.g., 'high', 'medium', 'low')",
+        max_length=20,
+        examples=["high", "medium", "low"]
+    )
+    assignee: Optional[str] = Field(
+        default=None,
+        description="Person assigned to complete this task",
+        max_length=60,
+        examples=["John Smith", "Team Lead", "jane@company.com"]
+    )
 
     @field_validator("priority", "assignee")
     @classmethod
@@ -228,11 +299,33 @@ class TemplateTaskMeta(BaseModel):
 
 
 class TemplateTask(BaseModel):
-    text: str
-    flair_type: str = Field(default="none")  # none|icon|image|qr|barcode|emoji
-    flair_value: Optional[str] = None
-    flair_size: Optional[int] = None
-    metadata: Optional[TemplateTaskMeta] = None
+    """A task within a template with optional flair and metadata."""
+    text: str = Field(
+        description="The task description or action to be performed",
+        min_length=1,
+        examples=["Buy groceries", "Call dentist", "Review quarterly reports"]
+    )
+    flair_type: str = Field(
+        default="none",
+        description="Type of visual decoration. Options: 'none', 'icon', 'image', 'qr', 'barcode', 'emoji'",
+        examples=["none", "icon", "emoji", "qr", "barcode", "image"]
+    )
+    flair_value: Optional[str] = Field(
+        default=None,
+        description="Content for the flair decoration. Required when flair_type is not 'none'",
+        examples=["📝", "shopping_cart", "https://example.com", "TEXT_TO_ENCODE"]
+    )
+    flair_size: Optional[int] = Field(
+        default=None,
+        description="Optional size modifier for flair (1-100, where 100 is largest)",
+        ge=1,
+        le=100,
+        examples=[25, 50, 75, 100]
+    )
+    metadata: Optional[TemplateTaskMeta] = Field(
+        default=None,
+        description="Additional task metadata like priority and assignee"
+    )
 
     @field_validator("text")
     @classmethod
@@ -275,8 +368,16 @@ class TemplateTask(BaseModel):
 
 
 class TemplateSection(BaseModel):
-    category: str
-    tasks: List[TemplateTask]
+    """A section within a template containing grouped tasks."""
+    category: str = Field(
+        description="Section title or category name that groups related tasks",
+        min_length=1,
+        examples=["Morning Routine", "Work Tasks", "Errands", "Shopping List"]
+    )
+    tasks: List[TemplateTask] = Field(
+        description="List of template tasks belonging to this section",
+        min_length=1
+    )
 
     @field_validator("category")
     @classmethod
@@ -305,9 +406,23 @@ class TemplateSection(BaseModel):
 
 
 class TemplateCreateRequest(BaseModel):
-    name: str
-    notes: Optional[str] = None
-    sections: List[TemplateSection]
+    """Request to create a new reusable template."""
+    name: str = Field(
+        description="Unique name for the template",
+        min_length=1,
+        max_length=100,
+        examples=["Daily Routine", "Weekly Shopping", "Project Checklist"]
+    )
+    notes: Optional[str] = Field(
+        default=None,
+        description="Optional notes or description about the template",
+        max_length=500,
+        examples=["My standard morning routine", "Shopping list template for weekly groceries"]
+    )
+    sections: List[TemplateSection] = Field(
+        description="List of template sections containing grouped tasks",
+        min_length=1
+    )
 
     @field_validator("name")
     @classmethod
@@ -336,47 +451,55 @@ class TemplateUpdateRequest(TemplateCreateRequest):
 
 
 class TemplateListItem(BaseModel):
-    id: int
-    name: str
-    notes: Optional[str] = None
-    created_at: str
-    updated_at: str
-    last_used_at: Optional[str] = None
-    sections_count: int
-    tasks_count: int
+    """Summary information for a template in list views."""
+    id: int = Field(description="Unique template identifier")
+    name: str = Field(description="Template name")
+    notes: Optional[str] = Field(default=None, description="Template notes or description")
+    created_at: str = Field(description="ISO timestamp when template was created")
+    updated_at: str = Field(description="ISO timestamp when template was last modified")
+    last_used_at: Optional[str] = Field(default=None, description="ISO timestamp when template was last used for printing")
+    sections_count: int = Field(description="Number of sections in this template", ge=0)
+    tasks_count: int = Field(description="Total number of tasks across all sections", ge=0)
 
 
 class TemplateTaskOut(BaseModel):
-    id: Optional[int] = None
-    text: str
-    position: int
-    flair_type: str
-    flair_value: Optional[str] = None
-    flair_size: Optional[int] = None
-    metadata: Optional[TemplateTaskMeta] = None
+    """Template task information for detailed views."""
+    id: Optional[int] = Field(default=None, description="Task database ID")
+    text: str = Field(description="Task description")
+    position: int = Field(description="Display order within the section", ge=0)
+    flair_type: str = Field(description="Type of visual decoration")
+    flair_value: Optional[str] = Field(default=None, description="Flair content")
+    flair_size: Optional[int] = Field(default=None, description="Flair size modifier")
+    metadata: Optional[TemplateTaskMeta] = Field(default=None, description="Task metadata")
 
 
 class TemplateSectionOut(BaseModel):
-    id: Optional[int] = None
-    category: str
-    position: int
-    tasks: List[TemplateTaskOut]
+    """Template section information for detailed views."""
+    id: Optional[int] = Field(default=None, description="Section database ID")
+    category: str = Field(description="Section category name")
+    position: int = Field(description="Display order within the template", ge=0)
+    tasks: List[TemplateTaskOut] = Field(description="Tasks in this section")
 
 
 class TemplateResponse(BaseModel):
-    id: int
-    name: str
-    notes: Optional[str] = None
-    created_at: str
-    updated_at: str
-    last_used_at: Optional[str] = None
-    sections: List[TemplateSectionOut]
+    """Complete template information."""
+    id: int = Field(description="Unique template identifier")
+    name: str = Field(description="Template name")
+    notes: Optional[str] = Field(default=None, description="Template notes or description")
+    created_at: str = Field(description="ISO timestamp when template was created")
+    updated_at: str = Field(description="ISO timestamp when template was last modified")
+    last_used_at: Optional[str] = Field(default=None, description="ISO timestamp when template was last used")
+    sections: List[TemplateSectionOut] = Field(description="Template sections and tasks")
 
 
 class TemplatePrintRequest(BaseModel):
-    # Optional override for tear-off delay; when absent, server may use config default.
-    options: Optional[Options] = None
+    """Request to print from an existing template."""
+    options: Optional[Options] = Field(
+        default=None,
+        description="Optional print configuration overrides. When absent, server uses template or system defaults"
+    )
 
 
 class TemplatePrintResponse(BaseModel):
-    job_id: str
+    """Response when template print job is submitted."""
+    job_id: str = Field(description="Unique identifier for the submitted print job")
