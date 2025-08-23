@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Pydantic schemas for the Task Printer API (v1).
 
@@ -8,10 +6,10 @@ for downstream processing. Limits are applied via the validation context
 passed at runtime, allowing env-driven constraints without circular imports.
 """
 
-from typing import Any, Dict, List, Optional
+from __future__ import annotations
+from typing import List, Optional
 
-from pydantic import BaseModel, Field, ValidationError, ValidationInfo, field_validator, model_validator
-
+from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
 def _has_control_chars(s: str) -> bool:
     return any((ord(c) < 32 and c not in "\n\r\t") or ord(c) == 127 for c in s)
