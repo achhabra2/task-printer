@@ -162,32 +162,6 @@ class HealthStatus(BaseModel):
     reason: str | None = None
 
 
-# Legacy Task class for backwards compatibility - remove after updating
-# class Task(BaseModel):
-#     """Unified task representation for both API input and worker processing."""
-#     # Core task data
-#     text: str | None = None  # Task text content
-#     task: str | None = None  # Alias for text (for worker compatibility)
-#     
-#     # Category/grouping (optional for input, required for worker)
-#     category: str | None = None
-#     
-#     # Flair - supports both input formats
-#     flair_type: Literal["none", "icon", "image", "qr", "emoji"] | None = None  # API input format
-#     flair_value: str | None = None  # API input format
-#     flair: FlairData | None = None  # Worker format (structured)
-#     
-#     # Metadata - supports both formats
-#     metadata: TaskMetadata | None = None  # API input format
-#     meta: TaskMetadata | None = None  # Worker format (alias)
-
-
-# Legacy SectionData - remove this duplicate
-# class SectionData(BaseModel):
-#     category: str
-#     tasks: list[Task]
-
-
 def register_tools(server: FastMCP) -> None:
     """
     Register all MCP tools with the server.
@@ -201,24 +175,12 @@ def register_tools(server: FastMCP) -> None:
     # Template Management Tools  
     _register_template_tools(server)
     
-    # System Management Tools
-    _register_system_tools(server)
 
 
 def _register_job_tools(server: FastMCP) -> None:
     """Register job management tools."""
     
-    @server.tool(
-        name="submit_job",
-        description="Submit a print job to the Task Printer with sections and tasks",
-        annotations={
-            "title": "Submit Print Job",
-            "readOnlyHint": False,
-            "destructiveHint": False,
-            "idempotentHint": False,
-            "openWorldHint": True
-        }
-    )
+    @server.tool()
     def submit_job(
         sections: Annotated[
             List[SectionData],
@@ -311,142 +273,12 @@ def _register_job_tools(server: FastMCP) -> None:
         except Exception as e:
             logger.error(f"MCP submit_job failed: {e}")
             raise ToolError(f"Failed to submit job: {str(e)}")
-    
-    @server.tool(
-        name="get_job_status", 
-        description="Get the status of a print job by ID",
-        annotations={
-            "title": "Get Job Status",
-            "readOnlyHint": True,
-            "openWorldHint": False
-        }
-    )
-    def get_job_status(
-        job_id: Annotated[
-            str, 
-            Field(description="The unique ID of the print job to check status for", min_length=1)
-        ]
-    ) -> JobStatus: 
-        """
-        Get the status of a print job.
-        
-        Args:
-            job_id: The ID of the job to check.
-            
-        Returns:
-            Dict containing job status information.
-            
-        Raises:
-            ToolError: If job not found or status check fails.
-        """
-        try:
-            from task_printer.printing.worker import get_job
-            
-            # Try to get live job status first
-            job = get_job(job_id)
-            if job:
-                return job
-            
-            # Try to get from database if available
-            try:
-                from task_printer.core import db as dbh
-                db_job = dbh.get_job_db(job_id)
-                if db_job:
-                    return {
-                        "id": db_job.get("id"),
-                        "type": db_job.get("type"), 
-                        "status": db_job.get("status"),
-                        "created_at": db_job.get("created_at"),
-                        "updated_at": db_job.get("updated_at"),
-                        "total": db_job.get("total"),
-                        "origin": db_job.get("origin"),
-                    }
-            except Exception:
-                pass
-            
-            raise ToolError(f"Job {job_id} not found")
-            
-        except ToolError:
-            raise  # Re-raise ToolError as-is
-        except Exception as e:
-            logger.error(f"MCP get_job_status failed: {e}")
-            raise ToolError(f"Failed to get job status: {str(e)}")
 
 
 def _register_template_tools(server: FastMCP) -> None:
     """Register template management tools."""
     
-    @server.tool(
-        name="list_templates",
-        description="List all available templates with metadata",
-        annotations={
-            "title": "List Templates",
-            "readOnlyHint": True,
-            "openWorldHint": False
-        }
-    )
-    def list_templates() -> List[TemplateMetadata]:
-        """
-        List all available templates.
-        
-        Returns:
-            List of template metadata dictionaries.
-        """
-        try:
-            from task_printer.core import db as dbh
-            templates = dbh.list_templates()
-            return templates
-        except Exception as e:
-            logger.error(f"MCP list_templates failed: {e}")
-            raise ToolError(f"Failed to list templates: {str(e)}")
-    
-    @server.tool(
-        name="get_template",
-        description="Get a specific template by ID with full details",
-        annotations={
-            "title": "Get Template",
-            "readOnlyHint": True,
-            "openWorldHint": False
-        }
-    )
-    def get_template(
-        template_id: Annotated[
-            int, 
-            Field(description="The unique ID of the template to retrieve", ge=1)
-        ]
-    ) -> dict[str, Any]:
-        """
-        Get a specific template by ID.
-        
-        Args:
-            template_id: The ID of the template to retrieve.
-            
-        Returns:
-            Template data including sections and tasks.
-        """
-        try:
-            from task_printer.core import db as dbh
-            template = dbh.get_template(template_id)
-            if not template:
-                raise ToolError(f"Template {template_id} not found")
-            return template
-        except ToolError:
-            raise  # Re-raise ToolError as-is
-        except Exception as e:
-            logger.error(f"MCP get_template failed: {e}")
-            raise ToolError(f"Failed to get template: {str(e)}")
-    
-    @server.tool(
-        name="create_template",
-        description="Create a new template with sections and tasks. Sections have same format as submit_job. Notes are optional (max 500 chars).",
-        annotations={
-            "title": "Create Template",
-            "readOnlyHint": False,
-            "destructiveHint": False,
-            "idempotentHint": False,
-            "openWorldHint": False
-        }
-    )
+    @server.tool()
     def create_template(
         name: Annotated[
             str, 
@@ -519,17 +351,7 @@ def _register_template_tools(server: FastMCP) -> None:
             logger.error(f"MCP create_template failed: {e}")
             raise ToolError(f"Failed to create template: {str(e)}")
     
-    @server.tool(
-        name="print_template",
-        description="Print from an existing template by ID. Optional tear_delay_seconds (0-60) for tear-off delay.",
-        annotations={
-            "title": "Print Template",
-            "readOnlyHint": False,
-            "destructiveHint": False,
-            "idempotentHint": False,
-            "openWorldHint": True
-        }
-    )
+    @server.tool()
     def print_template(
         template_id: Annotated[
             int, 
@@ -610,108 +432,6 @@ def _register_template_tools(server: FastMCP) -> None:
         except Exception as e:
             logger.error(f"MCP print_template failed: {e}")
             raise ToolError(f"Failed to print template: {str(e)}")
-
-
-def _register_system_tools(server: FastMCP) -> None:
-    """Register system management tools."""
-    
-    @server.tool(
-        name="get_health_status",
-        description="Get system health status for all components",
-        annotations={
-            "title": "Get Health Status",
-            "readOnlyHint": True,
-            "openWorldHint": True
-        }
-    )
-    def get_health_status() -> HealthStatus:
-        """
-        Get system health status.
-        
-        Returns:
-            Dict containing health information for various components.
-        """
-        try:
-            from task_printer.web.health import healthz
-            result, status_code = healthz()
-            
-            # Transform the Flask response into MCP format
-            health_status = {
-                "overall_status": "healthy" if result.get("status") == "ok" else "degraded",
-                "config": {
-                    "status": "configured" if result.get("status") != "degraded" or result.get("reason") != "no_config" else "not_configured"
-                },
-                "worker": {
-                    "status": "running" if result.get("worker_running", False) else "stopped",
-                    "queue_size": result.get("queue_size", 0)
-                },
-                "printer": {
-                    "status": "connected" if result.get("printer_ok", False) else "disconnected"
-                }
-            }
-            
-            if result.get("reason"):
-                health_status["reason"] = result["reason"]
-                
-            return health_status
-        except Exception as e:
-            logger.error(f"MCP get_health_status failed: {e}")
-            raise ToolError(f"Failed to get health status: {str(e)}")
-    
-    @server.tool(
-        name="test_print",
-        description="Submit a test print job to verify printer functionality", 
-        annotations={
-            "title": "Test Print",
-            "readOnlyHint": False,
-            "destructiveHint": False,
-            "idempotentHint": True,
-            "openWorldHint": True
-        }
-    )
-    def test_print() -> JobResult:
-        """
-        Submit a test print job.
-        
-        Returns:
-            Dict with job ID and status.
-        """
-        try:
-            from task_printer.printing.worker import ensure_worker, enqueue_tasks
-            from task_printer.core.config import load_config
-            
-            # Validate configuration
-            try:
-                cfg = load_config()
-            except Exception:
-                cfg = None
-            if not cfg:
-                raise ToolError("Service not configured. Complete setup first.")
-            
-            # Create test payload
-            test_payload = [{
-                "category": "MCP Test Print",
-                "task": "This is a test print from the MCP server",
-                "flair": None,
-                "meta": None
-            }]
-            
-            # Submit job
-            ensure_worker()
-            job_id = enqueue_tasks(test_payload)
-            
-            return {
-                "job_id": str(job_id),
-                "status": "queued",
-                "message": "Test print job submitted successfully"
-            }
-            
-        except ToolError:
-            raise  # Re-raise ToolError as-is
-        except Exception as e:
-            logger.error(f"MCP test_print failed: {e}")
-            raise ToolError(f"Failed to submit test print: {str(e)}")
-
 
 def _get_env_limits() -> dict[str, int]:
     """Get environment-driven limits for validation."""
