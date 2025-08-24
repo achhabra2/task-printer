@@ -71,7 +71,7 @@ class HealthStatus(BaseModel):
 class SubmitJobRequest(BaseModel):
     """Request model for submitting a print job."""
     sections: List[Section]
-    options: Options | None
+    options: Options | None = None
 
 
 class CreateTemplateRequest(BaseModel):
@@ -79,6 +79,14 @@ class CreateTemplateRequest(BaseModel):
     name: str = Field(description="Name of the template")
     sections: List[TemplateSection] = Field(description="Sections to include in the template")
     notes: str | None = Field(default=None, description="Optional notes about the template")
+
+
+class UpdateTemplateRequest(BaseModel):
+    """Request model for updating an existing print template."""
+    template_id: int = Field(description="ID of the template to update", ge=1)
+    name: str | None = Field(default=None, description="New name for the template")
+    sections: List[TemplateSection] | None = Field(default=None, description="New sections for the template")
+    notes: str | None = Field(default=None, description="New notes for the template")
 
 def register_tools(server: FastMCP) -> None:
     """
@@ -94,7 +102,7 @@ def register_tools(server: FastMCP) -> None:
     _register_template_tools(server)
     
     # System Management Tools
-    _register_system_tools(server)
+    # _register_system_tools(server)
 
 
 def _register_job_tools(server: FastMCP) -> None:
@@ -106,6 +114,46 @@ def _register_job_tools(server: FastMCP) -> None:
     ) -> JobResult:
         """
         Submit a print job to the Task Printer.
+        
+        Example request:
+        {
+            "sections": [
+                {
+                    "category": "Work Tasks",
+                    "tasks": [
+                        {
+                            "text": "Review quarterly budget report",
+                            "flair_type": "emoji",
+                            "flair_value": "📊",
+                            "metadata": {
+                                "priority": "high",
+                                "assignee": "John Doe",
+                                "due": "2025-08-30",
+                                "assigned": "2025-08-24"
+                            }
+                        },
+                        {
+                            "text": "Schedule team meeting",
+                            "flair_type": "none",
+                            "flair_value": null
+                        }
+                    ]
+                },
+                {
+                    "category": "Personal",
+                    "tasks": [
+                        {
+                            "text": "Buy groceries",
+                            "flair_type": "icon",
+                            "flair_value": "errands"
+                        }
+                    ]
+                }
+            ],
+            "options": {
+                "tear_delay_seconds": 5.0
+            }
+        }
         """
         try:
             # Import here to avoid circular imports
@@ -240,6 +288,51 @@ def _register_template_tools(server: FastMCP) -> None:
     def create_template(request: CreateTemplateRequest) -> TemplateResult: 
         """
         Create a new template.
+        
+        Example request:
+        {
+            "name": "Weekly Planning Template",
+            "notes": "Template for weekly task planning and review",
+            "sections": [
+                {
+                    "category": "This Week's Goals",
+                    "tasks": [
+                        {
+                            "text": "Complete project milestone",
+                            "flair_type": "emoji",
+                            "flair_value": "🎯",
+                            "metadata": {
+                                "priority": "high",
+                                "assignee": "Team Lead"
+                            }
+                        },
+                        {
+                            "text": "Review team performance",
+                            "flair_type": "icon",
+                            "flair_value": "working"
+                        }
+                    ]
+                },
+                {
+                    "category": "Personal Tasks",
+                    "tasks": [
+                        {
+                            "text": "Exercise 3 times",
+                            "flair_type": "icon",
+                            "flair_value": "fitness",
+                            "metadata": {
+                                "priority": "medium"
+                            }
+                        },
+                        {
+                            "text": "Meal prep for the week",
+                            "flair_type": "icon",
+                            "flair_value": "cooking"
+                        }
+                    ]
+                }
+            ]
+        }
         """
         try:
             from task_printer.core import db as dbh
@@ -269,6 +362,106 @@ def _register_template_tools(server: FastMCP) -> None:
         except Exception as e:
             logger.error(f"MCP create_template failed: {e}")
             raise ToolError(f"Failed to create template: {str(e)}")
+    
+    @server.tool()
+    def update_template(request: UpdateTemplateRequest) -> TemplateResult:
+        """
+        Update an existing template.
+        
+        Example request:
+        {
+            "template_id": 1,
+            "name": "Updated Weekly Planning Template",
+            "notes": "Updated template with new sections and improved organization",
+            "sections": [
+                {
+                    "category": "Priority Goals",
+                    "tasks": [
+                        {
+                            "text": "Complete critical project deliverable",
+                            "flair_type": "emoji",
+                            "flair_value": "🚀",
+                            "metadata": {
+                                "priority": "urgent",
+                                "assignee": "Project Manager"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "category": "Daily Habits",
+                    "tasks": [
+                        {
+                            "text": "Morning workout",
+                            "flair_type": "icon",
+                            "flair_value": "fitness"
+                        },
+                        {
+                            "text": "Review daily priorities",
+                            "flair_type": "emoji",
+                            "flair_value": "📋"
+                        }
+                    ]
+                }
+            ]
+        }
+        """
+        try:
+            from task_printer.core import db as dbh
+            
+            # Check if template exists
+            existing_template = dbh.get_template(request.template_id)
+            if not existing_template:
+                raise ToolError(f"Template {request.template_id} not found")
+            
+            # Prepare update data - use existing values for fields not provided
+            update_name = request.name if request.name is not None else existing_template["name"]
+            update_notes = request.notes if request.notes is not None else existing_template.get("notes")
+            
+            if request.sections is not None:
+                # Validate new sections using existing schema
+                limits = _get_env_limits()
+                temp_payload = {"name": update_name, "sections": request.sections}
+                validated_req = TemplateCreateRequest.model_validate(temp_payload, context={"limits": limits})
+                update_sections = validated_req.sections
+            else:
+                # Convert existing sections back to the format expected by update_template
+                update_sections = []
+                for sec in existing_template.get("sections", []):
+                    section_data = {
+                        "category": sec.get("category"),
+                        "tasks": []
+                    }
+                    for task in sec.get("tasks", []):
+                        task_data = {
+                            "text": task.get("text"),
+                            "flair_type": task.get("flair_type", "none"),
+                            "flair_value": task.get("flair_value"),
+                            "flair_size": task.get("flair_size")
+                        }
+                        # Add metadata if present
+                        metadata = task.get("metadata", {})
+                        if metadata and any(metadata.get(k) for k in ["assigned", "due", "priority", "assignee"]):
+                            task_data["metadata"] = {k: v for k, v in metadata.items() if v}
+                        section_data["tasks"].append(task_data)
+                    update_sections.append(section_data)
+            
+            # Update template with the complete data
+            success = dbh.update_template(request.template_id, update_name, update_notes, update_sections)
+            if not success:
+                raise ToolError(f"Failed to update template {request.template_id}")
+            
+            return {
+                "template_id": request.template_id,
+                "name": update_name,
+                "message": "Template updated successfully"
+            }
+            
+        except ToolError:
+            raise  # Re-raise ToolError as-is
+        except Exception as e:
+            logger.error(f"MCP update_template failed: {e}")
+            raise ToolError(f"Failed to update template: {str(e)}")
     
     @server.tool()
     def print_template(
