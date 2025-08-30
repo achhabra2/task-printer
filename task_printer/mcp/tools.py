@@ -423,7 +423,31 @@ def _register_template_tools(server: FastMCP) -> None:
                 limits = _get_env_limits()
                 temp_payload = {"name": update_name, "sections": request.sections}
                 validated_req = TemplateCreateRequest.model_validate(temp_payload, context={"limits": limits})
-                update_sections = validated_req.sections
+                # Convert TemplateSection objects to dictionaries for db.update_template
+                update_sections = []
+                for sec in validated_req.sections:
+                    section_data = {
+                        "category": sec.category,
+                        "tasks": []
+                    }
+                    for task in sec.tasks:
+                        task_data = {
+                            "text": task.text,
+                            "flair_type": task.flair_type,
+                            "flair_value": task.flair_value,
+                            "flair_size": task.flair_size
+                        }
+                        # Add metadata if present
+                        if task.metadata:
+                            metadata_dict = {}
+                            if task.metadata.priority:
+                                metadata_dict["priority"] = task.metadata.priority
+                            if task.metadata.assignee:
+                                metadata_dict["assignee"] = task.metadata.assignee
+                            if metadata_dict:
+                                task_data["metadata"] = metadata_dict
+                        section_data["tasks"].append(task_data)
+                    update_sections.append(section_data)
             else:
                 # Convert existing sections back to the format expected by update_template
                 update_sections = []
