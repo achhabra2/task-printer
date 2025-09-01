@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, List
+from typing import Any, Dict, List, Optional, cast
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -17,9 +17,14 @@ from pydantic import BaseModel, Field
 
 # Import existing schemas to avoid duplication
 from task_printer.web.schemas import (
-    Task, Section, Options, JobSubmitRequest,
-    TemplateSection, TemplateCreateRequest, TemplateListItem
+    Section,
+    Options,
+    JobSubmitRequest,
+    TemplateSection,
+    TemplateCreateRequest,
+    TemplateListItem,
 )
+from task_printer.core.db import SectionInput
 
 
 # Get logger for this module
@@ -151,7 +156,7 @@ def _register_job_tools(server: FastMCP) -> None:
                 }
             ],
             "options": {
-                "tear_delay_seconds": 5.0
+                "tear_delay_seconds": 0
             }
         }
         """
@@ -169,7 +174,8 @@ def _register_job_tools(server: FastMCP) -> None:
                 raise ToolError("Service not configured. Complete setup first.")
             
             # Validate request using existing schema
-            payload = {"sections": request.sections}
+            # Ensure payload typing can accept heterogenous values
+            payload: Dict[str, Any] = {"sections": request.sections}
             if request.options:
                 payload["options"] = request.options
                 
@@ -184,7 +190,7 @@ def _register_job_tools(server: FastMCP) -> None:
                 raise ToolError("No valid tasks to print.")
             
             # Prepare options for worker
-            worker_options = None
+            worker_options: Optional[Dict[str, Any]] = None
             if req.options and req.options.tear_delay_seconds:
                 worker_options = {"tear_delay_seconds": req.options.tear_delay_seconds}
             
@@ -196,11 +202,7 @@ def _register_job_tools(server: FastMCP) -> None:
                 # Backward compatibility for older worker signature
                 job_id = enqueue_tasks(subtitle_tasks)
             
-            return {
-                "job_id": str(job_id),
-                "status": "queued",
-                "message": "Job submitted successfully"
-            }
+            return JobResult(job_id=str(job_id), status="queued", message="Job submitted successfully")
             
         except ToolError:
             raise  # Re-raise ToolError as-is
@@ -221,22 +223,14 @@ def _register_job_tools(server: FastMCP) -> None:
             # Try to get live job status first
             job = get_job(job_id)
             if job:
-                return job
+                return JobStatus.model_validate(job)
             
             # Try to get from database if available
             try:
                 from task_printer.core import db as dbh
                 db_job = dbh.get_job_db(job_id)
                 if db_job:
-                    return {
-                        "id": db_job.get("id"),
-                        "type": db_job.get("type"), 
-                        "status": db_job.get("status"),
-                        "created_at": db_job.get("created_at"),
-                        "updated_at": db_job.get("updated_at"),
-                        "total": db_job.get("total"),
-                        "origin": db_job.get("origin"),
-                    }
+                    return JobStatus.model_validate(db_job)
             except Exception:
                 pass
             
@@ -260,7 +254,7 @@ def _register_template_tools(server: FastMCP) -> None:
         try:
             from task_printer.core import db as dbh
             templates = dbh.list_templates()
-            return templates
+            return [TemplateListItem.model_validate(t) for t in templates]
         except Exception as e:
             logger.error(f"MCP list_templates failed: {e}")
             raise ToolError(f"Failed to list templates: {str(e)}")
@@ -339,23 +333,19 @@ def _register_template_tools(server: FastMCP) -> None:
             
             # Validate using existing schema
             limits = _get_env_limits()
-            payload = {"name": request.name, "sections": request.sections}
+            payload: Dict[str, Any] = {"name": request.name, "sections": request.sections}
             if request.notes:
                 payload["notes"] = request.notes
                 
             req = TemplateCreateRequest.model_validate(payload, context={"limits": limits})
             
             # Convert to DB format
-            db_sections = _convert_template_to_db_format(req.sections)
+            db_sections: List[SectionInput] = _convert_template_to_db_format(req.sections)
             
             # Create template
             template_id = dbh.create_template(req.name, req.notes, db_sections)
             
-            return {
-                "template_id": template_id,
-                "name": req.name,
-                "message": "Template created successfully"
-            }
+            return TemplateResult(template_id=template_id, name=req.name, message="Template created successfully")
             
         except ToolError:
             raise  # Re-raise ToolError as-is
@@ -475,11 +465,7 @@ def _register_template_tools(server: FastMCP) -> None:
             if not success:
                 raise ToolError(f"Failed to update template {request.template_id}")
             
-            return {
-                "template_id": request.template_id,
-                "name": update_name,
-                "message": "Template updated successfully"
-            }
+            return TemplateResult(template_id=request.template_id, name=update_name, message="Template updated successfully")
             
         except ToolError:
             raise  # Re-raise ToolError as-is
@@ -494,7 +480,7 @@ def _register_template_tools(server: FastMCP) -> None:
             description="Optional override for tear-off delay in seconds (0-60)", 
             ge=0.0, 
             le=60.0,
-            default=None
+            default=0.0
         )
     ) -> PrintTemplateResult: 
         """
@@ -523,7 +509,7 @@ def _register_template_tools(server: FastMCP) -> None:
                 raise ToolError("Template contains no printable tasks")
             
             # Determine options
-            options = None
+            options: Optional[Dict[str, Any]] = None
             if tear_delay_seconds is not None:
                 # Clamp the value
                 delay = max(0.0, min(60.0, float(tear_delay_seconds)))
@@ -550,12 +536,12 @@ def _register_template_tools(server: FastMCP) -> None:
             # Update last used timestamp
             dbh.touch_template_last_used(template_id)
             
-            return {
-                "job_id": str(job_id),
-                "template_id": template_id,
-                "status": "queued",
-                "message": "Template print job submitted successfully"
-            }
+            return PrintTemplateResult(
+                job_id=str(job_id),
+                template_id=template_id,
+                status="queued",
+                message="Template print job submitted successfully",
+            )
             
         except ToolError:
             raise  # Re-raise ToolError as-is
@@ -580,7 +566,7 @@ def _register_system_tools(server: FastMCP) -> None:
             result, status_code = healthz()
             
             # Transform the Flask response into MCP format
-            health_status = {
+            health_status: Dict[str, Any] = {
                 "overall_status": "healthy" if result.get("status") == "ok" else "degraded",
                 "config": {
                     "status": "configured" if result.get("status") != "degraded" or result.get("reason") != "no_config" else "not_configured"
@@ -597,7 +583,7 @@ def _register_system_tools(server: FastMCP) -> None:
             if result.get("reason"):
                 health_status["reason"] = result["reason"]
                 
-            return health_status
+            return HealthStatus.model_validate(health_status)
         except Exception as e:
             logger.error(f"MCP get_health_status failed: {e}")
             raise ToolError(f"Failed to get health status: {str(e)}")
@@ -631,11 +617,7 @@ def _register_system_tools(server: FastMCP) -> None:
             ensure_worker()
             job_id = enqueue_tasks(test_payload)
             
-            return {
-                "job_id": str(job_id),
-                "status": "queued",
-                "message": "Test print job submitted successfully"
-            }
+            return JobResult(job_id=str(job_id), status="queued", message="Test print job submitted successfully")
             
         except ToolError:
             raise  # Re-raise ToolError as-is
@@ -661,7 +643,7 @@ def _get_env_limits() -> dict[str, int]:
     }
 
 
-def _convert_to_worker_format(req: Any) -> List[Task]:
+def _convert_to_worker_format(req: Any) -> List[Dict[str, Any]]:
     """Convert validated request to worker format."""
     subtitle_tasks = []
     
@@ -701,7 +683,7 @@ def _convert_to_worker_format(req: Any) -> List[Task]:
     return subtitle_tasks
 
 
-def _convert_template_to_db_format(sections: List[TemplateSection]) -> List[dict[str, Any]]:
+def _convert_template_to_db_format(sections: List[TemplateSection]) -> List[SectionInput]:
     """Convert template sections to database format."""
     db_sections = []
     
@@ -732,10 +714,10 @@ def _convert_template_to_db_format(sections: List[TemplateSection]) -> List[dict
         
         db_sections.append(db_sec)
     
-    return db_sections
+    return cast(List[SectionInput], db_sections)
 
 
-def _template_to_print_payload(template: dict[str, Any]) -> List[Task]:
+def _template_to_print_payload(template: dict[str, Any]) -> List[Dict[str, Any]]:
     """Convert template to print worker payload format."""
     payload = []
     
