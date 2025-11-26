@@ -61,9 +61,10 @@
         {% if usb_devices and usb_devices|length > 0 %}
           {% for dev in usb_devices %}
             {% set is_selected = (config and pt == 'usb' and ('0x' ~ dev.vendor)|lower == (config.usb_vendor_id|default('')|lower) and ('0x' ~ dev.product)|lower == (config.usb_product_id|default('')|lower)) %}
+            {% set input_id = 'usb_dev_' ~ dev.vendor ~ '_' ~ dev.product %}
             <div class="mb-3 flex items-start gap-2 text-left">
-              <input class="mt-1.5 h-3.5 w-3.5" type="radio" name="usb_device" value="0x{{ dev.vendor }}:0x{{ dev.product }}" {% if is_selected %}checked{% endif %}>
-              <label class="m-0 font-normal text-slate-800 dark:text-slate-200">
+              <input id="{{ input_id }}" class="mt-1.5 h-3.5 w-3.5" type="radio" name="usb_device" value="0x{{ dev.vendor }}:0x{{ dev.product }}" {% if is_selected %}checked{% endif %}>
+              <label for="{{ input_id }}" class="m-0 font-normal text-slate-800 dark:text-slate-200 cursor-pointer">
                 {{ dev.desc }}
                 {% if not dev.is_printer %}
                   <span class="text-slate-400 text-sm">(not a printer)</span>
@@ -76,8 +77,8 @@
           {% set cfg_product_no0x = (config.usb_product_id|default('')|lower|replace('0x','')) if config else '' %}
           {% set matched = usb_devices | selectattr('vendor','equalto', cfg_vendor_no0x) | selectattr('product','equalto', cfg_product_no0x) | list %}
           <div class="mt-2 flex items-center gap-2 text-left">
-            <input class="h-3.5 w-3.5" type="radio" name="usb_device" value="manual" {% if config and pt == 'usb' and (matched|length == 0) %}checked{% endif %}>
-            <label class="font-normal m-0">Other (enter manually below)</label>
+            <input id="usb_dev_manual" class="h-3.5 w-3.5" type="radio" name="usb_device" value="manual" {% if config and pt == 'usb' and (matched|length == 0) %}checked{% endif %}>
+            <label for="usb_dev_manual" class="font-normal m-0 cursor-pointer">Other (enter manually below)</label>
           </div>
         {% else %}
           {% set matched = [] %}
@@ -455,6 +456,8 @@
     var t = document.getElementById('printer_type').value;
     if (t === 'usb') {
       showId('usb_fields'); hideId('network_fields'); hideId('serial_fields');
+      // Ensure manual fields visibility reflects current radio selection
+      onUsbRadioChange();
     } else if (t === 'network') {
       hideId('usb_fields'); showId('network_fields'); hideId('serial_fields');
     } else if (t === 'serial') {
@@ -463,6 +466,12 @@
   }
 
   function onUsbRadioChange() {
+    var radios = document.querySelectorAll('input[name=usb_device]');
+    if (!radios || radios.length === 0) {
+      // No autodetected devices; keep manual fields visible
+      showId('manual_usb_fields');
+      return;
+    }
     var checked = document.querySelector('input[name=usb_device]:checked');
     if (checked && checked.value === 'manual') showId('manual_usb_fields');
     else hideId('manual_usb_fields');
